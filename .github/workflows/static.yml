@@ -1,0 +1,811 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Crew Performance Summary</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a1a;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: #fff;
+      border-bottom: 1px solid #e0e6ef;
+      justify-content: flex-start;
+    }
+    .date-picker, .division-input {
+      padding: 0.5rem;
+      font-size: 0.95rem;
+      border-radius: 0.375rem;
+      border: 1px solid #b0c4de;
+      background: #f8fafc;
+      color: #003366;
+      outline: none;
+      width: 200px;
+    }
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      border: 1px solid #0074D9;
+      background: #0074D9;
+      color: #fff;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:hover {
+      background: #003366;
+      transform: scale(1.05);
+    }
+    .division-btn {
+      padding: 0.5rem 1rem;
+      margin: 0.25rem;
+      border-radius: 0.375rem;
+      border: 1px solid #0074D9;
+      background: #e6f0fa;
+      color: #003366;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .division-btn:hover {
+      background: #b0c4de;
+    }
+    .division-btn.active {
+      background: #0074D9;
+      color: #fff;
+      border-color: #003366;
+    }
+    .table-container {
+      max-width: 98%;
+      margin: 1rem auto;
+      background: #fff;
+      border-radius: 0.5rem;
+      box-shadow: 0 2px 6px rgba(0, 51, 102, 0.1);
+      overflow-x: auto;
+      padding: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: auto;
+    }
+    th {
+      background: #0074D9;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    th:hover {
+      background: #003366;
+    }
+    th, td {
+      border: 1px solid #e0e6ef;
+      padding: 0.5rem;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+    tr:hover td {
+      background: #e6f0fa;
+    }
+    .section-header {
+      margin: 2rem 0 1rem;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #003366;
+      text-align: center;
+    }
+    .button-container {
+      margin: 1rem auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .pagination {
+      margin: 1rem auto;
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .pagination-btn {
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      border: 1px solid #0074D9;
+      background: #e6f0fa;
+      color: #003366;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .pagination-btn:hover {
+      background: #b0c4de;
+    }
+    .pagination-btn.disabled {
+      background: #d3d3d3;
+      cursor: not-allowed;
+    }
+    .hidden {
+      display: none;
+    }
+    /* Category Colors */
+    .cat-spm { background-color: #e6f3ff; }
+    .cat-cvvrs { background-color: #e6ffe6; }
+    .cat-cug { background-color: #ffe6e6; }
+    .cat-personal-mob { background-color: #fff5e6; }
+    .cat-mob-declaration { background-color: #e6e6ff; }
+    .cat-lobby-online { background-color: #f0e6ff; }
+    .cat-yellow-dfc { background-color: #ffffe6; }
+    .cat-yellow-ir { background-color: #e6fff0; }
+    .cat-alp-rs { background-color: #ffe6f0; }
+    .cat-memu-speed { background-color: #e6faff; }
+    .cat-ibs-signal { background-color: #f0ffe6; }
+    .cat-running-room { background-color: #ffe6ff; }
+    .cat-stabling { background-color: #e6f0ff; }
+    .cat-shunting { background-color: #fffae6; }
+    @media (max-width: 768px) {
+      .top-bar, .button-container {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .date-picker, .division-input {
+        width: 100%;
+      }
+      th, td {
+        font-size: 0.8rem;
+        padding: 0.4rem;
+      }
+      .table-container {
+        padding: 0.5rem;
+      }
+    }
+    @media (max-width: 480px) {
+      th, td {
+        font-size: 0.7rem;
+        padding: 0.3rem;
+      }
+      .btn, .division-btn, .pagination-btn {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.8rem;
+      }
+      .section-header {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <input type="text" id="datePicker" class="date-picker" placeholder="Select Date Range">
+    <input type="text" id="divisionInput" class="division-input" placeholder="Enter Division (Optional)">
+    <button class="btn" id="resetBtn">🔄 Reset Filters</button>
+    <button class="btn" id="excelBtn">📥 Export to Excel</button>
+    <button class="btn" id="toggleDivisionSummaryBtn">📊 Show Division Summary</button>
+  </div>
+
+  <h2 class="text-2xl font-semibold text-center bg-gradient-to-r from-[#003366] to-[#0074D9] text-white py-3 mb-3 rounded-b-lg shadow-md">Crew Performance Summary</h2>
+
+  <div class="table-container">
+    <table id="summaryTable">
+      <thead id="summaryHeader"></thead>
+      <tbody id="summaryBody"></tbody>
+    </table>
+  </div>
+
+  <h3 class="section-header hidden" id="divisionSummaryHeader">Division-Based Summary</h3>
+  <div class="table-container hidden" id="divisionSummaryContainer">
+    <table id="divisionSummaryTable">
+      <thead id="divisionSummaryTableHeader"></thead>
+      <tbody id="divisionSummaryTableBody"></tbody>
+    </table>
+  </div>
+
+  <h3 class="section-header">Remarks Details</h3>
+  <div class="button-container" id="divisionButtons"></div>
+  <div class="table-container">
+    <table id="remarksTable">
+      <thead id="remarksHeader"></thead>
+      <tbody id="remarksBody"></tbody>
+    </table>
+  </div>
+  <div class="pagination">
+    <button class="pagination-btn" id="prevPageBtn">Previous</button>
+    <span id="pageInfo"></span>
+    <button class="pagination-btn" id="nextPageBtn">Next</button>
+  </div>
+
+<script>
+const SHEET_ID = '12mtmU8RBHFLUpFXYCdGH96mMBL_Ec6cpvh0dR_CotZg';
+const API_KEY = 'AIzaSyBkKVtdfFbFfdFE8FqSaUGZvptxj0Fysco';
+const RANGE = 'CrewData!A1:AF1000';
+let allData = [], headers = [], summaryData = [], divisionSummaryData = {}, remarksData = [];
+let selectedDivision = '', buttonDivision = '';
+let fromDate = '', toDate = '', showDivisionSummary = false;
+let currentPage = 1, rowsPerPage = 10;
+
+fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`)
+  .then(res => {
+    if (!res.ok) throw new Error('Failed to fetch data from Google Sheets');
+    return res.json();
+  })
+  .then(data => {
+    allData = data.values;
+    headers = allData[0];
+    initUI();
+    renderTables();
+  })
+  .catch(err => {
+    console.error(err);
+    alert('Error fetching data. Please check your internet connection or try again later.');
+  });
+
+function initUI() {
+  const today = new Date();
+  const defaultFrom = new Date();
+  defaultFrom.setDate(today.getDate() - 6);
+  fromDate = defaultFrom.toISOString().split('T')[0];
+  toDate = today.toISOString().split('T')[0];
+
+  flatpickr('#datePicker', {
+    mode: 'range',
+    dateFormat: 'Y-m-d',
+    defaultDate: [fromDate, toDate],
+    static: true,
+    onChange: (selectedDates) => {
+      if (selectedDates.length === 2) {
+        fromDate = selectedDates[0].toISOString().split('T')[0];
+        toDate = selectedDates[1].toISOString().split('T')[0];
+        if (fromDate > toDate) {
+          alert('Start date cannot be later than end date.');
+          fromDate = toDate;
+          document.getElementById('datePicker')._flatpickr.setDate([toDate, toDate]);
+        }
+        currentPage = 1;
+        renderTables();
+      }
+    }
+  });
+
+  document.getElementById('divisionInput').addEventListener('input', function() {
+    selectedDivision = this.value.trim();
+    currentPage = 1;
+    renderTables();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    selectedDivision = '';
+    buttonDivision = '';
+    showDivisionSummary = false;
+    currentPage = 1;
+    document.getElementById('divisionInput').value = '';
+    document.getElementById('toggleDivisionSummaryBtn').textContent = '📊 Show Division Summary';
+    document.getElementById('divisionSummaryHeader').classList.add('hidden');
+    document.getElementById('divisionSummaryContainer').classList.add('hidden');
+    const today = new Date();
+    const defaultFrom = new Date();
+    defaultFrom.setDate(today.getDate() - 6);
+    fromDate = defaultFrom.toISOString().split('T')[0];
+    toDate = today.toISOString().split('T')[0];
+    document.getElementById('datePicker')._flatpickr.setDate([fromDate, toDate]);
+    renderTables();
+  });
+
+  document.getElementById('toggleDivisionSummaryBtn').addEventListener('click', () => {
+    showDivisionSummary = !showDivisionSummary;
+    document.getElementById('toggleDivisionSummaryBtn').textContent = showDivisionSummary ? '📊 Hide Division Summary' : '📊 Show Division Summary';
+    document.getElementById('divisionSummaryHeader').classList.toggle('hidden', !showDivisionSummary);
+    document.getElementById('divisionSummaryContainer').classList.toggle('hidden', !showDivisionSummary);
+    renderTables();
+  });
+
+  document.getElementById('excelBtn').addEventListener('click', exportToExcel);
+
+  document.getElementById('prevPageBtn').addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderTables();
+    }
+  });
+
+  document.getElementById('nextPageBtn').addEventListener('click', () => {
+    if (currentPage < Math.ceil(remarksData.length / rowsPerPage)) {
+      currentPage++;
+      renderTables();
+    }
+  });
+}
+
+function renderTables() {
+  const idx = name => headers.indexOf(name);
+  const categories = [
+    { sn: 1, name: 'No. of SPMs Analyzed', checkCol: 2, defCol: 3, class: 'cat-spm' },
+    { sn: 2, name: 'No. of CVVRS Analyzed', checkCol: 4, defCol: 5, class: 'cat-cvvrs' },
+    { sn: 3, name: 'CUG Checked', checkCol: 6, defCol: 7, class: 'cat-cug' },
+    { sn: 4, name: 'Personal Mob. Checked', checkCol: 8, defCol: 9, class: 'cat-personal-mob' },
+    { sn: 5, name: 'Mob. Declaration', checkCol: 10, defCol: 11, class: 'cat-mob-declaration' },
+    { sn: 6, name: 'Lobby + Online', checkCol: [12, 13], defCol: 14, class: 'cat-lobby-online' },
+    { sn: 7, name: 'Ambush - Passing Yellow Yellow Signal DFC', checkCol: 15, defCol: 16, class: 'cat-yellow-dfc' },
+    { sn: 8, name: 'Ambush - Passing Yellow Signal IR', checkCol: 17, defCol: 18, class: 'cat-yellow-ir' },
+    { sn: 9, name: 'ALP RS Valve (Yellow Signal IR)', checkCol: 19, defCol: 20, class: 'cat-alp-rs' },
+    { sn: 10, name: 'MEMU/EMU Speed at PF Entry', checkCol: 21, defCol: 22, class: 'cat-memu-speed' },
+    { sn: 11, name: 'IBH Signal Passed as per Rule', checkCol: 23, defCol: 24, class: 'cat-ibs-signal' },
+    { sn: 12, name: 'Running Room (Wee Hours)', checkCol: 25, defCol: 26, class: 'cat-running-room' },
+    { sn: 13, name: 'Stabling/Securing of Loads', checkCol: 27, defCol: 28, class: 'cat-stabling' },
+    { sn: 14, name: 'Shunting operations', checkCol: 29, defCol: 30, class: 'cat-shunting' }
+  ];
+  const deficiencyColumns = [3, 5, 7, 9, 11, 14, 16, 18, 20, 22, 24, 26, 28, 30]; // D, F, H, J, L, O, Q, S, U, W, Y, AA, AC, AE
+  const divisionSummaryColumns = {
+    division: 1,
+    spm: 2,
+    defSpm: 3,
+    cvvrs: 4,
+    defCvvrs: 5,
+    cugChecked: 6,
+    cugMisused: 7,
+    personalMobChecked: 8,
+    personalMobMisused: 9,
+    mobDeclaration: 10,
+    mismatch: 11,
+    lobbyOnline: [12, 13],
+    mobDef: 14,
+    yellowYellowDfc: 15,
+    defYellowYellowDfc: 16,
+    yellowIr: 17,
+    defYellowIr: 18,
+    alpRsValve: 19,
+    defAlpRsValve: 20,
+    memuSpeed: 21,
+    overspeeding: 22,
+    ibsSignal: 23,
+    defIbsSignal: 24,
+    runningRoom: 25,
+    defRunningRoom: 26,
+    stablingChecked: 27,
+    defStabling: 28,
+    shuntingChecked: 29,
+    defShunting: 30
+  };
+
+  // Aggregate data for original summary
+  const divisionData = {};
+  allData.slice(2).forEach(r => {
+    const date = r[idx('Date')], division = r[1];
+    if (!division || !date || date < fromDate || date > toDate) return;
+    if (selectedDivision && division !== selectedDivision) return;
+
+    if (!divisionData[division]) {
+      divisionData[division] = categories.reduce((acc, cat) => {
+        acc[cat.sn] = { checks: 0, deficiencies: 0 };
+        return acc;
+      }, {});
+    }
+
+    categories.forEach(cat => {
+      if (Array.isArray(cat.checkCol)) {
+        cat.checkCol.forEach(col => {
+          divisionData[division][cat.sn].checks += Number(r[col] || 0);
+        });
+      } else {
+        divisionData[division][cat.sn].checks += Number(r[cat.checkCol] || 0);
+      }
+      divisionData[division][cat.sn].deficiencies += Number(r[cat.defCol] || 0);
+    });
+  });
+
+  // Summarize data across divisions for original summary
+  summaryData = categories.map(cat => {
+    const checks = Object.values(divisionData).reduce((sum, div) => sum + div[cat.sn].checks, 0);
+    const deficiencies = Object.values(divisionData).reduce((sum, div) => sum + div[cat.sn].deficiencies, 0);
+    const divisionsWithDef = Object.keys(divisionData)
+      .filter(div => divisionData[div][cat.sn].deficiencies > 0)
+      .join(', ');
+    return {
+      sn: cat.sn,
+      category: cat.name,
+      checks,
+      deficiencies,
+      divisionsWithDef: divisionsWithDef || 'None'
+    };
+  });
+
+  // Aggregate data for division-based summary
+  divisionSummaryData = {};
+  allData.slice(2).forEach(r => {
+    const date = r[idx('Date')], division = r[1];
+    if (!division || !date || date < fromDate || date > toDate) return;
+    if (selectedDivision && division !== selectedDivision) return;
+
+    if (!divisionSummaryData[division]) {
+      divisionSummaryData[division] = {
+        spm: 0, defSpm: 0, cvvrs: 0, defCvvrs: 0, cugChecked: 0, cugMisused: 0,
+        personalMobChecked: 0, personalMobMisused: 0, mobDeclaration: 0, mismatch: 0,
+        lobbyOnline: 0, mobDef: 0, yellowYellowDfc: 0, defYellowYellowDfc: 0,
+        yellowIr: 0, defYellowIr: 0, alpRsValve: 0, defAlpRsValve: 0,
+        memuSpeed: 0, overspeeding: 0, ibsSignal: 0, defIbsSignal: 0,
+        runningRoom: 0, defRunningRoom: 0, stablingChecked: 0, defStabling: 0,
+        shuntingChecked: 0, defShunting: 0
+      };
+    }
+    divisionSummaryData[division].spm += Number(r[divisionSummaryColumns.spm] || 0);
+    divisionSummaryData[division].defSpm += Number(r[divisionSummaryColumns.defSpm] || 0);
+    divisionSummaryData[division].cvvrs += Number(r[divisionSummaryColumns.cvvrs] || 0);
+    divisionSummaryData[division].defCvvrs += Number(r[divisionSummaryColumns.defCvvrs] || 0);
+    divisionSummaryData[division].cugChecked += Number(r[divisionSummaryColumns.cugChecked] || 0);
+    divisionSummaryData[division].cugMisused += Number(r[divisionSummaryColumns.cugMisused] || 0);
+    divisionSummaryData[division].personalMobChecked += Number(r[divisionSummaryColumns.personalMobChecked] || 0);
+    divisionSummaryData[division].personalMobMisused += Number(r[divisionSummaryColumns.personalMobMisused] || 0);
+    divisionSummaryData[division].mobDeclaration += Number(r[divisionSummaryColumns.mobDeclaration] || 0);
+    divisionSummaryData[division].mismatch += Number(r[divisionSummaryColumns.mismatch] || 0);
+    divisionSummaryData[division].lobbyOnline += Number(r[divisionSummaryColumns.lobbyOnline[0]] || 0) + Number(r[divisionSummaryColumns.lobbyOnline[1] || 0]);
+    divisionSummaryData[division].mobDef += Number(r[divisionSummaryColumns.mobDef] || 0);
+    divisionSummaryData[division].yellowYellowDfc += Number(r[divisionSummaryColumns.yellowYellowDfc] || 0);
+    divisionSummaryData[division].defYellowYellowDfc += Number(r[divisionSummaryColumns.defYellowYellowDfc] || 0);
+    divisionSummaryData[division].yellowIr += Number(r[divisionSummaryColumns.yellowIr] || 0);
+    divisionSummaryData[division].defYellowIr += Number(r[divisionSummaryColumns.defYellowIr] || 0);
+    divisionSummaryData[division].alpRsValve += Number(r[divisionSummaryColumns.alpRsValve] || 0);
+    divisionSummaryData[division].defAlpRsValve += Number(r[divisionSummaryColumns.defAlpRsValve] || 0);
+    divisionSummaryData[division].memuSpeed += Number(r[divisionSummaryColumns.memuSpeed] || 0);
+    divisionSummaryData[division].overspeeding += Number(r[divisionSummaryColumns.overspeeding] || 0);
+    divisionSummaryData[division].ibsSignal += Number(r[divisionSummaryColumns.ibsSignal] || 0);
+    divisionSummaryData[division].defIbsSignal += Number(r[divisionSummaryColumns.defIbsSignal] || 0);
+    divisionSummaryData[division].runningRoom += Number(r[divisionSummaryColumns.runningRoom] || 0);
+    divisionSummaryData[division].defRunningRoom += Number(r[divisionSummaryColumns.defRunningRoom] || 0);
+    divisionSummaryData[division].stablingChecked += Number(r[divisionSummaryColumns.stablingChecked] || 0);
+    divisionSummaryData[division].defStabling += Number(r[divisionSummaryColumns.defStabling] || 0);
+    divisionSummaryData[division].shuntingChecked += Number(r[divisionSummaryColumns.shuntingChecked] || 0);
+    divisionSummaryData[division].defShunting += Number(r[divisionSummaryColumns.defShunting] || 0);
+  });
+
+  // Render Original Summary Table
+  const summaryHeader = document.getElementById('summaryHeader');
+  const summaryBody = document.getElementById('summaryBody');
+  const excelSummaryData = [];
+
+  summaryHeader.innerHTML = `
+    <th onclick="sortTable('sn')">SN</th>
+    <th onclick="sortTable('category')">Category</th>
+    <th onclick="sortTable('checks')">No of Checks Conducted</th>
+    <th onclick="sortTable('deficiencies')">Deficiencies Noticed</th>
+    <th onclick="sortTable('divisionsWithDef')">Divisions Deficiencies</th>
+  `;
+
+  summaryBody.innerHTML = '';
+  if (summaryData.length === 0) {
+    summaryBody.innerHTML = `<tr><td colspan="5">No data available for the selected filters.</td></tr>`;
+  } else {
+    summaryData.forEach(row => {
+      const html = `
+        <tr>
+          <td>${row.sn}</td>
+          <td>${row.category}</td>
+          <td>${row.checks}</td>
+          <td>${row.deficiencies}</td>
+          <td>${row.divisionsWithDef}</td>
+        </tr>
+      `;
+      summaryBody.insertAdjacentHTML('beforeend', html);
+      excelSummaryData.push({
+        SN: row.sn,
+        Category: row.category,
+        'No of Checks Conducted': row.checks,
+        'Deficiencies Noticed': row.deficiencies,
+        'Divisions Deficiencies': row.divisionsWithDef
+      });
+    });
+  }
+
+  // Render Division-Based Summary Table
+  const divisionSummaryTableHeader = document.getElementById('divisionSummaryTableHeader');
+  const divisionSummaryTableBody = document.getElementById('divisionSummaryTableBody');
+  const excelDivisionSummaryData = [];
+
+  divisionSummaryTableHeader.innerHTML = `
+    <th onclick="sortDivisionTable('division')">Division</th>
+    <th onclick="sortDivisionTable('spm')">Total SPMs</th>
+    <th onclick="sortDivisionTable('defSpm')">SPM Def.</th>
+    <th onclick="sortDivisionTable('cvvrs')">Total CVVRS</th>
+    <th onclick="sortDivisionTable('defCvvrs')">CVVRS Def.</th>
+    <th onclick="sortDivisionTable('cugChecked')">CUG Checked</th>
+    <th onclick="sortDivisionTable('cugMisused')">CUG Misused</th>
+    <th onclick="sortDivisionTable('personalMobChecked')">Personal Mob. Checked</th>
+    <th onclick="sortDivisionTable('personalMobMisused')">Personal Mob. Misused</th>
+    <th onclick="sortDivisionTable('mobDeclaration')">Mob. Declaration</th>
+    <th onclick="sortDivisionTable('mismatch')">Mismatch</th>
+    <th onclick="sortDivisionTable('lobbyOnline')">Lobby + Online</th>
+    <th onclick="sortDivisionTable('mobDef')">Mob. Def.</th>
+    <th onclick="sortDivisionTable('yellowYellowDfc')">Ambush: Yellow-Yellow DFC</th>
+    <th onclick="sortDivisionTable('defYellowYellowDfc')">Def: Yellow-Yellow DFC</th>
+    <th onclick="sortDivisionTable('yellowIr')">Ambush: Yellow IR</th>
+    <th onclick="sortDivisionTable('defYellowIr')">Def: Yellow IR</th>
+    <th onclick="sortDivisionTable('alpRsValve')">ALP RS Valve Check</th>
+    <th onclick="sortDivisionTable('defAlpRsValve')">Def: ALP RS Valve</th>
+    <th onclick="sortDivisionTable('memuSpeed')">MEMU Speed at PF</th>
+    <th onclick="sortDivisionTable('overspeeding')">OverSpeeding Cases</th>
+    <th onclick="sortDivisionTable('ibsSignal')">IBS Signal Passed</th>
+    <th onclick="sortDivisionTable('defIbsSignal')">Def: IBS Signal</th>
+    <th onclick="sortDivisionTable('runningRoom')">Running Room (Wee Hours)</th>
+    <th onclick="sortDivisionTable('defRunningRoom')">Def: Running Room</th>
+    <th onclick="sortDivisionTable('stablingChecked')">Stabling Checked</th>
+    <th onclick="sortDivisionTable('defStabling')">Def: Stabling</th>
+    <th onclick="sortDivisionTable('shuntingChecked')">Shunting Checked</th>
+    <th onclick="sortDivisionTable('defShunting')">Def: Shunting</th>
+  `;
+
+  divisionSummaryTableBody.innerHTML = '';
+  if (showDivisionSummary) {
+    const divisions = Object.keys(divisionSummaryData).sort((a, b) => divisionSummaryData[b].spm - divisionSummaryData[a].spm);
+    if (divisions.length === 0) {
+      divisionSummaryTableBody.innerHTML = `<tr><td colspan="29">No data available for the selected filters.</td></tr>`;
+    } else {
+      divisions.forEach(division => {
+        const g = divisionSummaryData[division];
+        const row = `
+          <tr>
+            <td>${division}</td>
+            <td>${g.spm}</td>
+            <td>${g.defSpm}</td>
+            <td>${g.cvvrs}</td>
+            <td>${g.defCvvrs}</td>
+            <td>${g.cugChecked}</td>
+            <td>${g.cugMisused}</td>
+            <td>${g.personalMobChecked}</td>
+            <td>${g.personalMobMisused}</td>
+            <td>${g.mobDeclaration}</td>
+            <td>${g.mismatch}</td>
+            <td>${g.lobbyOnline}</td>
+            <td>${g.mobDef}</td>
+            <td>${g.yellowYellowDfc}</td>
+            <td>${g.defYellowYellowDfc}</td>
+            <td>${g.yellowIr}</td>
+            <td>${g.defYellowIr}</td>
+            <td>${g.alpRsValve}</td>
+            <td>${g.defAlpRsValve}</td>
+            <td>${g.memuSpeed}</td>
+            <td>${g.overspeeding}</td>
+            <td>${g.ibsSignal}</td>
+            <td>${g.defIbsSignal}</td>
+            <td>${g.runningRoom}</td>
+            <td>${g.defRunningRoom}</td>
+            <td>${g.stablingChecked}</td>
+            <td>${g.defStabling}</td>
+            <td>${g.shuntingChecked}</td>
+            <td>${g.defShunting}</td>
+          </tr>
+        `;
+        divisionSummaryTableBody.insertAdjacentHTML('beforeend', row);
+        excelDivisionSummaryData.push({
+          Division: division,
+          'Total SPMs': g.spm,
+          'SPM Def.': g.defSpm,
+          'Total CVVRS': g.cvvrs,
+          'CVVRS Def.': g.defCvvrs,
+          'CUG Checked': g.cugChecked,
+          'CUG Misused': g.cugMisused,
+          'Personal Mob. Checked': g.personalMobChecked,
+          'Personal Mob. Misused': g.personalMobMisused,
+          'Mob. Declaration': g.mobDeclaration,
+          Mismatch: g.mismatch,
+          'Lobby + Online': g.lobbyOnline,
+          'Mob. Def.': g.mobDef,
+          'Ambush: Yellow-Yellow DFC': g.yellowYellowDfc,
+          'Def: Yellow-Yellow DFC': g.defYellowYellowDfc,
+          'Ambush: Yellow IR': g.yellowIr,
+          'Def: Yellow IR': g.defYellowIr,
+          'ALP RS Valve Check': g.alpRsValve,
+          'Def: ALP RS Valve': g.defAlpRsValve,
+          'MEMU Speed at PF': g.memuSpeed,
+          'OverSpeeding Cases': g.overspeeding,
+          'IBS Signal Passed': g.ibsSignal,
+          'Def: IBS Signal': g.defIbsSignal,
+          'Running Room (Wee Hours)': g.runningRoom,
+          'Def: Running Room': g.defRunningRoom,
+          'Stabling Checked': g.stablingChecked,
+          'Def: Stabling': g.defStabling,
+          'Shunting Checked': g.shuntingChecked,
+          'Def: Shunting': g.defShunting
+        });
+      });
+    }
+  }
+
+  // Populate Division Buttons
+  const divisionButtons = document.getElementById('divisionButtons');
+  const uniqueDivisions = [...new Set(summaryData.flatMap(row => row.divisionsWithDef.split(', ').filter(div => div !== 'None')))];
+  divisionButtons.innerHTML = '';
+  uniqueDivisions.forEach(div => {
+    const button = document.createElement('button');
+    button.className = `division-btn ${div === buttonDivision ? 'active' : ''}`;
+    button.textContent = div;
+    button.addEventListener('click', () => {
+      buttonDivision = div;
+      currentPage = 1;
+      renderTables();
+    });
+    divisionButtons.appendChild(button);
+  });
+
+  // Render Remarks Table
+  const remarksHeader = document.getElementById('remarksHeader');
+  const remarksBody = document.getElementById('remarksBody');
+  const excelRemarksData = [];
+
+  remarksHeader.innerHTML = `
+    <th>Date</th>
+    <th>Division</th>
+    <th>Category</th>
+    <th>Remarks</th>
+  `;
+
+  remarksData = [];
+  if (buttonDivision) {
+    const selectedCategories = summaryData.filter(row => row.divisionsWithDef.split(', ').includes(buttonDivision));
+    allData.slice(2).forEach(r => {
+      const date = r[idx('Date')], division = r[1], remarks = r[31] || '';
+      if (!division || !date || date < fromDate || date > toDate) return;
+      if (selectedDivision && division !== selectedDivision) return;
+      if (division !== buttonDivision) return;
+
+      const hasDeficiency = deficiencyColumns.some(col => Number(r[col] || 0) > 0);
+      if (!hasDeficiency) return;
+
+      selectedCategories.forEach(row => {
+        const cat = categories.find(c => c.sn === row.sn);
+        const deficiency = Number(r[cat.defCol] || 0);
+        if (deficiency > 0) {
+          remarksData.push({
+            date,
+            division,
+            category: cat.name,
+            remarks,
+            class: cat.class
+          });
+        }
+      });
+    });
+  }
+
+  remarksBody.innerHTML = '';
+  if (remarksData.length === 0) {
+    remarksBody.innerHTML = `<tr><td colspan="4">No remarks data available for the selected division.</td></tr>`;
+  } else {
+    const start = (currentPage - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
+    const paginatedData = remarksData.slice(start, end);
+    paginatedData.forEach(row => {
+      const html = `
+        <tr>
+          <td>${row.date}</td>
+          <td>${row.division}</td>
+          <td class="${row.class}">${row.category}</td>
+          <td class="${row.class}">${row.remarks}</td>
+        </tr>
+      `;
+      remarksBody.insertAdjacentHTML('beforeend', html);
+    });
+
+    // Populate Excel data with all remarks (not just paginated)
+    remarksData.forEach(row => {
+      excelRemarksData.push({
+        Date: row.date,
+        Division: row.division,
+        Category: row.category,
+        Remarks: row.remarks
+      });
+    });
+  }
+
+  // Update Pagination Controls
+  const totalPages = Math.ceil(remarksData.length / rowsPerPage);
+  document.getElementById('pageInfo').textContent = remarksData.length > 0 ? `Page ${currentPage} of ${totalPages}` : '';
+  document.getElementById('prevPageBtn').classList.toggle('disabled', currentPage === 1);
+  document.getElementById('nextPageBtn').classList.toggle('disabled', currentPage === totalPages || totalPages === 0);
+
+  document.getElementById('excelBtn').dataset.excelSummaryData = JSON.stringify(excelSummaryData);
+  document.getElementById('excelBtn').dataset.excelDivisionSummaryData = JSON.stringify(excelDivisionSummaryData);
+  document.getElementById('excelBtn').dataset.excelRemarksData = JSON.stringify(excelRemarksData);
+}
+
+function sortTable(column) {
+  summaryData.sort((a, b) => {
+    if (column === 'sn' || column === 'checks' || column === 'deficiencies') {
+      return a[column] - b[column];
+    }
+    return a[column].localeCompare(b[column]);
+  });
+  renderTables();
+}
+
+function sortDivisionTable(column) {
+  const divisions = Object.keys(divisionSummaryData);
+  divisions.sort((a, b) => {
+    if (column === 'division') return a.localeCompare(b);
+    return divisionSummaryData[b][column] - divisionSummaryData[a][column];
+  });
+  renderTables();
+}
+
+function exportToExcel() {
+  const excelSummaryData = JSON.parse(document.getElementById('excelBtn').dataset.excelSummaryData || '[]');
+  const excelDivisionSummaryData = JSON.parse(document.getElementById('excelBtn').dataset.excelDivisionSummaryData || '[]');
+  const excelRemarksData = JSON.parse(document.getElementById('excelBtn').dataset.excelRemarksData || '[]');
+  if (excelSummaryData.length === 0 && excelDivisionSummaryData.length === 0 && excelRemarksData.length === 0) {
+    alert('No data available to export.');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  if (excelSummaryData.length > 0) {
+    const wsSummary = XLSX.utils.json_to_sheet(excelSummaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Category Summary');
+  }
+  if (excelDivisionSummaryData.length > 0) {
+    const wsDivisionSummary = XLSX.utils.json_to_sheet(excelDivisionSummaryData);
+    XLSX.utils.book_append_sheet(wb, wsDivisionSummary, 'Division Summary');
+  }
+  if (excelRemarksData.length > 0) {
+    const wsRemarks = XLSX.utils.json_to_sheet(excelRemarksData);
+    XLSX.utils.book_append_sheet(wb, wsRemarks, 'Remarks');
+  }
+  const today = new Date().toISOString().split('T')[0];
+  XLSX.write(wb, `Crew_Summary_Remarks_${today}.xlsx`);
+}
+</script>
+</body>
+</html>
