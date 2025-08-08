@@ -1,4 +1,43 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -109,7 +148,7 @@
     th, td {
       border: 1px solid #e0e6ef;
       padding: 0.5rem;
-      text-align: left;
+      text-align: center;
       font-size: 0.9rem;
     }
     tr:nth-child(even) td {
@@ -120,10 +159,10 @@
     }
     .section-header {
       margin: 2rem 0 1rem;
-      font-size: 2.0rem;
+      font-size: 1.5rem;
       font-weight: 600;
       color: #003366;
-      text-align: left;
+      text-align: center;
     }
     .button-container {
       margin: 1rem auto;
@@ -135,7 +174,7 @@
     .pagination {
       margin: 1rem auto;
       display: flex;
-      justify-content: left;
+      justify-content: center;
       gap: 0.5rem;
     }
     .pagination-btn {
@@ -155,7 +194,7 @@
       cursor: not-allowed;
     }
     .division-group-header {
-      background: #eb1313;
+      background: #e0e6ef;
       font-weight: bold;
       text-align: left;
       padding: 0.5rem;
@@ -216,7 +255,7 @@
     .pdf-table th, .pdf-table td {
       border: 1px solid #e0e6ef;
       padding: 4px;
-      text-align: left;
+      text-align: center;
     }
     .pdf-table th {
       background: #0074D9;
@@ -229,7 +268,6 @@
       background: #e0e6ef;
       text-align: left;
       font-weight: bold;
-      font-size: 30px;
     }
   </style>
 </head>
@@ -285,7 +323,7 @@
 const { jsPDF } = window.jspdf;
 const SHEET_ID = '12mtmU8RBHFLUpFXYCdGH96mMBL_Ec6cpvh0dR_CotZg';
 const API_KEY = 'AIzaSyBkKVtdfFbFfdFE8FqSaUGZvptxj0Fysco';
-const RANGE = 'CrewData!A1:AF1000';
+const RANGE = 'CrewData!A1:AJ1000';
 let allData = [], headers = [], summaryData = [], divisionSummaryData = {}, remarksData = [];
 let selectedDivision = '', buttonDivision = '', buttonCategory = '';
 let fromDate = '', toDate = '', showDivisionSummary = false;
@@ -694,30 +732,52 @@ function renderTables() {
     }
   }
 
-  // Calculate Counts for Buttons
+  // Calculate Counts for Buttons and Aggregate Remarks Data
   const divisionCounts = {};
   const categoryCounts = {};
   categories.forEach(cat => categoryCounts[cat.name] = 0);
   const allRemarksData = [];
+  const groupedRemarks = {};
+
   allData.slice(2).forEach(r => {
-    const date = r[idx('Date')], division = r[1], remarks = r[31] || '';
+    const date = r[idx('Date')], division = r[1], remarks = r[31] || '', e_date = r[33] || '', action_taken = r[34] || '', status = r[35] || '';
     if (!division || !date || date < fromDate || date > toDate) return;
     if (selectedDivision && division !== selectedDivision) return;
 
     const hasDeficiency = deficiencyColumns.some(col => Number(r[col] || 0) > 0);
     if (!hasDeficiency) return;
 
+    const key = `${date}_${division}`;
+    if (!groupedRemarks[key]) {
+      groupedRemarks[key] = { date, division, categories: [], remarks, e_date, action_taken, status };
+    }
+
     summaryData.forEach(row => {
       const cat = categories.find(c => c.sn === row.sn);
       if (row.divisionsWithDef.split(', ').includes(division)) {
         const deficiency = Number(r[cat.defCol] || 0);
         if (deficiency > 0) {
-          allRemarksData.push({ date, division, category: cat.name, remarks, class: cat.class });
-          divisionCounts[division] = (divisionCounts[division] || 0) + 1;
-          categoryCounts[cat.name] = (categoryCounts[cat.name] || 0) + 1;
+          if (!groupedRemarks[key].categories.includes(cat.name)) {
+            groupedRemarks[key].categories.push(cat.name);
+            categoryCounts[cat.name] = (categoryCounts[cat.name] || 0) + 1;
+            divisionCounts[division] = (divisionCounts[division] || 0) + 1;
+          }
         }
       }
     });
+
+    if (groupedRemarks[key].categories.length > 0) {
+      allRemarksData.push({
+        date,
+        division,
+        categories: groupedRemarks[key].categories,
+        remarks,
+        e_date,
+        action_taken,
+        status,
+        class: groupedRemarks[key].categories.map(cat => categories.find(c => c.name === cat)?.class).join(' ')
+      });
+    }
   });
 
   // Populate Division Buttons
@@ -779,15 +839,18 @@ function renderTables() {
     <th>Division</th>
     <th>Category</th>
     <th>Remarks</th>
+    <th>E_Date</th>
+    <th>Action Taken Remarks</th>
+    <th>Status</th>
   `;
 
   remarksData = [];
   if (buttonDivision) {
-    const selectedCategories = buttonCategory === 'ALL' ? categories : (buttonCategory ? [categories.find(c => c.name === buttonCategory)] : categories);
+    const selectedCategories = buttonCategory === 'ALL' ? categories.map(c => c.name) : [buttonCategory];
     const divisionsToShow = buttonDivision === 'ALL' ? uniqueDivisions : [buttonDivision];
 
     divisionsToShow.forEach(division => {
-      const filteredData = allRemarksData.filter(row => row.division === division && (buttonCategory === 'ALL' || row.category === buttonCategory));
+      const filteredData = allRemarksData.filter(row => row.division === division && (buttonCategory === 'ALL' || row.categories.includes(buttonCategory)));
       if (filteredData.length > 0) {
         if (buttonDivision === 'ALL') {
           remarksData.push({ isHeader: true, division });
@@ -799,22 +862,25 @@ function renderTables() {
 
   remarksBody.innerHTML = '';
   if (remarksData.length === 0) {
-    remarksBody.innerHTML = `<tr><td colspan="4">No remarks data available for the selected filters.</td></tr>`;
+    remarksBody.innerHTML = `<tr><td colspan="7">No remarks data available for the selected filters.</td></tr>`;
   } else {
     const start = (currentPage - 1) * rowsPerPage;
     const end = start + rowsPerPage;
     const paginatedData = remarksData.slice(start, end);
     paginatedData.forEach(row => {
       if (row.isHeader) {
-        const html = `<tr><td colspan="4" class="division-group-header">${row.division}</td></tr>`;
+        const html = `<tr><td colspan="7" class="division-group-header">${row.division}</td></tr>`;
         remarksBody.insertAdjacentHTML('beforeend', html);
       } else {
         const html = `
           <tr>
             <td>${row.date}</td>
             <td>${row.division}</td>
-            <td class="${row.class}">${row.category}</td>
+            <td class="${row.class}">${row.categories.join(', ')}</td>
             <td class="${row.class}">${row.remarks}</td>
+            <td>${row.e_date}</td>
+            <td>${row.action_taken}</td>
+            <td>${row.status}</td>
           </tr>
         `;
         remarksBody.insertAdjacentHTML('beforeend', html);
@@ -823,13 +889,16 @@ function renderTables() {
 
     // Populate Excel data with all remarks (not just paginated)
     allRemarksData.forEach(row => {
-      if (buttonCategory === 'ALL' || row.category === buttonCategory) {
+      if (buttonCategory === 'ALL' || row.categories.includes(buttonCategory)) {
         if (buttonDivision === 'ALL' || row.division === buttonDivision) {
           excelRemarksData.push({
             Date: row.date,
             Division: row.division,
-            Category: row.category,
-            Remarks: row.remarks
+            Category: row.categories.join(', '),
+            Remarks: row.remarks,
+            E_Date: row.e_date,
+            'Action Taken Remarks': row.action_taken,
+            Status: row.status
           });
         }
       }
@@ -940,14 +1009,17 @@ async function exportToPDF() {
 
     remarksData.forEach((row, index) => {
       if (row.isHeader) {
-        currentChunk.push(`<tr><td colspan="4" class="division-group-header">${row.division}</td></tr>`);
+        currentChunk.push(`<tr><td colspan="7" class="division-group-header">${row.division}</td></tr>`);
       } else {
         currentChunk.push(`
           <tr>
             <td>${row.date}</td>
             <td>${row.division}</td>
-            <td class="${row.class}">${row.category}</td>
+            <td class="${row.class}">${row.categories.join(', ')}</td>
             <td class="${row.class}">${row.remarks}</td>
+            <td>${row.e_date}</td>
+            <td>${row.action_taken}</td>
+            <td>${row.status}</td>
           </tr>
         `);
       }
