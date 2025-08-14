@@ -46,6 +46,7 @@
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -150,6 +151,7 @@
       padding: 0.5rem;
       text-align: center;
       font-size: 0.9rem;
+      min-width: 60px;
     }
     tr:nth-child(even) td {
       background: #f8fafc;
@@ -202,7 +204,6 @@
     .hidden {
       display: none;
     }
-    /* Category Colors */
     .cat-spm { background-color: #e6f3ff; }
     .cat-cvvrs { background-color: #e6ffe6; }
     .cat-cug { background-color: #ffe6e6; }
@@ -217,6 +218,60 @@
     .cat-running-room { background-color: #ffe6ff; }
     .cat-stabling { background-color: #e6f0ff; }
     .cat-shunting { background-color: #fffae6; }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-content h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: #003366;
+    }
+    .preview-page {
+      border: 1px solid #e0e6ef;
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      background: #fff;
+      font-size: 0.8rem;
+    }
+    .preview-page img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #e0e6ef;
+    }
+    .preview-controls {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .preview-controls label {
+      font-weight: 500;
+      color: #003366;
+    }
+    .preview-controls input[type="range"] {
+      width: 100%;
+    }
+    .preview-controls .btn {
+      margin-top: 0.5rem;
+    }
     @media (max-width: 768px) {
       .top-bar, .button-container, .header-buttons {
         flex-direction: column;
@@ -228,6 +283,7 @@
       th, td {
         font-size: 0.8rem;
         padding: 0.4rem;
+        min-width: 50px;
       }
       .table-container {
         padding: 0.5rem;
@@ -237,6 +293,7 @@
       th, td {
         font-size: 0.7rem;
         padding: 0.3rem;
+        min-width: 40px;
       }
       .btn, .header-btn, .filter-btn, .pagination-btn {
         font-size: 0.8rem;
@@ -245,17 +302,23 @@
       .section-header {
         font-size: 1.2rem;
       }
+      .modal-content {
+        width: 95%;
+        padding: 1rem;
+      }
     }
-    /* PDF-specific styles */
     .pdf-table {
-      font-size: 10px;
+      font-size: 8px;
       width: 100%;
       border-collapse: collapse;
     }
     .pdf-table th, .pdf-table td {
       border: 1px solid #e0e6ef;
-      padding: 4px;
+      padding: 3px;
       text-align: center;
+      word-break: break-word;
+      white-space: normal;
+      min-width: 60px;
     }
     .pdf-table th {
       background: #0074D9;
@@ -319,6 +382,23 @@
     <button class="pagination-btn" id="nextPageBtn">Next</button>
   </div>
 
+  <div id="pdfPreviewModal" class="modal">
+    <div class="modal-content">
+      <h2>PDF Page Preview</h2>
+      <div id="previewContent"></div>
+      <div class="preview-controls">
+        <label>Font Size (pt): <span id="fontSizeValue">8</span></label>
+        <input type="range" id="fontSizeSlider" min="6" max="10" value="8" step="0.5">
+        <label>Column Width Multiplier: <span id="columnWidthValue">1.0</span></label>
+        <input type="range" id="columnWidthSlider" min="0.8" max="1.5" value="1.0" step="0.1">
+        <label>Margins (mm): <span id="marginValue">8</span></label>
+        <input type="range" id="marginSlider" min="5" max="12" value="8" step="1">
+        <button class="btn" id="confirmPdfBtn">Confirm and Export</button>
+        <button class="btn" id="cancelPdfBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 const { jsPDF } = window.jspdf;
 const SHEET_ID = '12mtmU8RBHFLUpFXYCdGH96mMBL_Ec6cpvh0dR_CotZg';
@@ -328,29 +408,39 @@ let allData = [], headers = [], summaryData = [], divisionSummaryData = {}, rema
 let selectedDivision = '', buttonDivision = '', buttonCategory = '';
 let fromDate = '', toDate = '', showDivisionSummary = false;
 let currentPage = 1, rowsPerPage = 100;
+let pdfSettings = { fontSize: 8, columnWidthMultiplier: 1.0, margin: 8 };
 
-fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`)
-  .then(res => {
-    if (!res.ok) throw new Error('Failed to fetch data from Google Sheets');
-    return res.json();
-  })
-  .then(data => {
-    allData = data.values;
-    headers = allData[0];
+// Fetch data with error handling
+async function fetchData() {
+  try {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`);
+    if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+    const data = await res.json();
+    allData = data.values || [];
+    if (allData.length === 0) throw new Error('No data received from Google Sheets');
+    headers = allData[0] || [];
     initUI();
     renderTables();
-  })
-  .catch(err => {
-    console.error(err);
+  } catch (err) {
+    console.error('Fetch Error:', err);
     alert('Error fetching data. Please check your internet connection or try again later.');
-  });
+  }
+}
+fetchData();
+
+function addOneDay(dateStr) {
+  if (!dateStr) return '';
+  let date = new Date(dateStr);
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().split('T')[0];
+}
 
 function initUI() {
   const today = new Date();
   const defaultFrom = new Date();
   defaultFrom.setDate(today.getDate() - 6);
-  fromDate = defaultFrom.toISOString().split('T')[0];
-  toDate = today.toISOString().split('T')[0];
+  fromDate = addOneDay(defaultFrom.toISOString().split('T')[0]);
+  toDate = addOneDay(today.toISOString().split('T')[0]);
 
   flatpickr('#datePicker', {
     mode: 'range',
@@ -359,12 +449,14 @@ function initUI() {
     static: true,
     onChange: (selectedDates) => {
       if (selectedDates.length === 2) {
-        fromDate = selectedDates[0].toISOString().split('T')[0];
-        toDate = selectedDates[1].toISOString().split('T')[0];
+        const inputFrom = selectedDates[0].toISOString().split('T')[0];
+        const inputTo = selectedDates[1].toISOString().split('T')[0];
+        fromDate = addOneDay(inputFrom);
+        toDate = addOneDay(inputTo);
         if (fromDate > toDate) {
           alert('Start date cannot be later than end date.');
           fromDate = toDate;
-          document.getElementById('datePicker')._flatpickr.setDate([toDate, toDate]);
+          document.getElementById('datePicker')._flatpickr.setDate([inputTo, inputTo]);
         }
         currentPage = 1;
         renderTables();
@@ -391,8 +483,8 @@ function initUI() {
     const today = new Date();
     const defaultFrom = new Date();
     defaultFrom.setDate(today.getDate() - 6);
-    fromDate = defaultFrom.toISOString().split('T')[0];
-    toDate = today.toISOString().split('T')[0];
+    fromDate = addOneDay(defaultFrom.toISOString().split('T')[0]);
+    toDate = addOneDay(today.toISOString().split('T')[0]);
     document.getElementById('datePicker')._flatpickr.setDate([fromDate, toDate]);
     renderTables();
   });
@@ -406,7 +498,7 @@ function initUI() {
   });
 
   document.getElementById('excelBtn').addEventListener('click', exportToExcel);
-  document.getElementById('pdfBtn').addEventListener('click', exportToPDF);
+  document.getElementById('pdfBtn').addEventListener('click', showPdfPreview);
 
   document.getElementById('prevPageBtn').addEventListener('click', () => {
     if (currentPage > 1) {
@@ -425,17 +517,30 @@ function initUI() {
   document.getElementById('page1Btn').addEventListener('click', () => {
     window.location.reload();
   });
-  document.getElementById('page2Btn').addEventListener('click', () => {
-    alert('Coming Soon');
+  ['page2Btn', 'page3Btn', 'page4Btn', 'page5Btn'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      alert('Coming Soon');
+    });
   });
-  document.getElementById('page3Btn').addEventListener('click', () => {
-    alert('Coming Soon');
+
+  document.getElementById('fontSizeSlider').addEventListener('input', function() {
+    pdfSettings.fontSize = parseFloat(this.value);
+    document.getElementById('fontSizeValue').textContent = this.value;
+    showPdfPreview();
   });
-  document.getElementById('page4Btn').addEventListener('click', () => {
-    alert('Coming Soon');
+  document.getElementById('columnWidthSlider').addEventListener('input', function() {
+    pdfSettings.columnWidthMultiplier = parseFloat(this.value);
+    document.getElementById('columnWidthValue').textContent = this.value;
+    showPdfPreview();
   });
-  document.getElementById('page5Btn').addEventListener('click', () => {
-    alert('Coming Soon');
+  document.getElementById('marginSlider').addEventListener('input', function() {
+    pdfSettings.margin = parseInt(this.value);
+    document.getElementById('marginValue').textContent = this.value;
+    showPdfPreview();
+  });
+  document.getElementById('confirmPdfBtn').addEventListener('click', exportToPDF);
+  document.getElementById('cancelPdfBtn').addEventListener('click', () => {
+    document.getElementById('pdfPreviewModal').style.display = 'none';
   });
 }
 
@@ -457,7 +562,7 @@ function renderTables() {
     { sn: 13, name: 'Stabling/Securing of Loads', checkCol: 27, defCol: 28, class: 'cat-stabling' },
     { sn: 14, name: 'Shunting operations', checkCol: 29, defCol: 30, class: 'cat-shunting' }
   ];
-  const deficiencyColumns = [3, 5, 7, 9, 11, 14, 16, 18, 20, 22, 24, 26, 28, 30]; // D, F, H, J, L, O, Q, S, U, W, Y, AA, AC, AE
+  const deficiencyColumns = [3, 5, 7, 9, 11, 14, 16, 18, 20, 22, 24, 26, 28, 30];
   const divisionSummaryColumns = {
     division: 1,
     spm: 2,
@@ -490,11 +595,11 @@ function renderTables() {
     defShunting: 30
   };
 
-  // Aggregate data for original summary
   const divisionData = {};
   allData.slice(2).forEach(r => {
     const date = r[idx('Date')], division = r[1];
-    if (!division || !date || date < fromDate || date > toDate) return;
+    if (!division || !date) return;
+    if (date < fromDate || date > toDate) return;
     if (selectedDivision && division !== selectedDivision) return;
 
     if (!divisionData[division]) {
@@ -516,7 +621,6 @@ function renderTables() {
     });
   });
 
-  // Summarize data across divisions for original summary
   summaryData = categories.map(cat => {
     const checks = Object.values(divisionData).reduce((sum, div) => sum + div[cat.sn].checks, 0);
     const deficiencies = Object.values(divisionData).reduce((sum, div) => sum + div[cat.sn].deficiencies, 0);
@@ -532,11 +636,11 @@ function renderTables() {
     };
   });
 
-  // Aggregate data for division-based summary
   divisionSummaryData = {};
   allData.slice(2).forEach(r => {
     const date = r[idx('Date')], division = r[1];
-    if (!division || !date || date < fromDate || date > toDate) return;
+    if (!division || !date) return;
+    if (date < fromDate || date > toDate) return;
     if (selectedDivision && division !== selectedDivision) return;
 
     if (!divisionSummaryData[division]) {
@@ -560,7 +664,7 @@ function renderTables() {
     divisionSummaryData[division].personalMobMisused += Number(r[divisionSummaryColumns.personalMobMisused] || 0);
     divisionSummaryData[division].mobDeclaration += Number(r[divisionSummaryColumns.mobDeclaration] || 0);
     divisionSummaryData[division].mismatch += Number(r[divisionSummaryColumns.mismatch] || 0);
-    divisionSummaryData[division].lobbyOnline += Number(r[divisionSummaryColumns.lobbyOnline[0]] || 0) + Number(r[divisionSummaryColumns.lobbyOnline[1] || 0]);
+    divisionSummaryData[division].lobbyOnline += Number(r[divisionSummaryColumns.lobbyOnline[0]] || 0) + Number(r[divisionSummaryColumns.lobbyOnline[1]] || 0);
     divisionSummaryData[division].mobDef += Number(r[divisionSummaryColumns.mobDef] || 0);
     divisionSummaryData[division].yellowYellowDfc += Number(r[divisionSummaryColumns.yellowYellowDfc] || 0);
     divisionSummaryData[division].defYellowYellowDfc += Number(r[divisionSummaryColumns.defYellowYellowDfc] || 0);
@@ -580,7 +684,6 @@ function renderTables() {
     divisionSummaryData[division].defShunting += Number(r[divisionSummaryColumns.defShunting] || 0);
   });
 
-  // Render Original Summary Table
   const summaryHeader = document.getElementById('summaryHeader');
   const summaryBody = document.getElementById('summaryBody');
   const excelSummaryData = [];
@@ -618,7 +721,6 @@ function renderTables() {
     });
   }
 
-  // Render Division-Based Summary Table
   const divisionSummaryTableHeader = document.getElementById('divisionSummaryTableHeader');
   const divisionSummaryTableBody = document.getElementById('divisionSummaryTableBody');
   const excelDivisionSummaryData = [];
@@ -732,7 +834,6 @@ function renderTables() {
     }
   }
 
-  // Calculate Counts for Buttons and Aggregate Remarks Data
   const divisionCounts = {};
   const categoryCounts = {};
   categories.forEach(cat => categoryCounts[cat.name] = 0);
@@ -741,7 +842,8 @@ function renderTables() {
 
   allData.slice(2).forEach(r => {
     const date = r[idx('Date')], division = r[1], remarks = r[31] || '', e_date = r[33] || '', action_taken = r[34] || '', status = r[35] || '';
-    if (!division || !date || date < fromDate || date > toDate) return;
+    if (!division || !date) return;
+    if (date < fromDate || date > toDate) return;
     if (selectedDivision && division !== selectedDivision) return;
 
     const hasDeficiency = deficiencyColumns.some(col => Number(r[col] || 0) > 0);
@@ -780,7 +882,6 @@ function renderTables() {
     }
   });
 
-  // Populate Division Buttons
   const divisionButtons = document.getElementById('divisionButtons');
   const uniqueDivisions = [...new Set(summaryData.flatMap(row => row.divisionsWithDef.split(', ').filter(div => div !== 'None')))];
   divisionButtons.innerHTML = '';
@@ -805,7 +906,6 @@ function renderTables() {
     divisionButtons.appendChild(button);
   });
 
-  // Populate Category Buttons
   const categoryButtons = document.getElementById('categoryButtons');
   categoryButtons.innerHTML = '';
   const allCategoryButton = document.createElement('button');
@@ -829,7 +929,6 @@ function renderTables() {
     categoryButtons.appendChild(button);
   });
 
-  // Render Remarks Table
   const remarksHeader = document.getElementById('remarksHeader');
   const remarksBody = document.getElementById('remarksBody');
   const excelRemarksData = [];
@@ -887,7 +986,6 @@ function renderTables() {
       }
     });
 
-    // Populate Excel data with all remarks (not just paginated)
     allRemarksData.forEach(row => {
       if (buttonCategory === 'ALL' || row.categories.includes(buttonCategory)) {
         if (buttonDivision === 'ALL' || row.division === buttonDivision) {
@@ -905,7 +1003,6 @@ function renderTables() {
     });
   }
 
-  // Update Pagination Controls
   const totalPages = Math.ceil(remarksData.length / rowsPerPage);
   document.getElementById('pageInfo').textContent = remarksData.length > 0 ? `Page ${currentPage} of ${totalPages}` : '';
   document.getElementById('prevPageBtn').classList.toggle('disabled', currentPage === 1);
@@ -936,129 +1033,352 @@ function sortDivisionTable(column) {
 }
 
 function exportToExcel() {
-  const excelSummaryData = JSON.parse(document.getElementById('excelBtn').dataset.excelSummaryData || '[]');
-  const excelDivisionSummaryData = JSON.parse(document.getElementById('excelBtn').dataset.excelDivisionSummaryData || '[]');
-  const excelRemarksData = JSON.parse(document.getElementById('excelBtn').dataset.excelRemarksData || '[]');
-  if (excelSummaryData.length === 0 && excelDivisionSummaryData.length === 0 && excelRemarksData.length === 0) {
-    alert('No data available to export.');
-    return;
+  try {
+    const excelSummaryData = JSON.parse(document.getElementById('excelBtn').dataset.excelSummaryData || '[]');
+    const excelDivisionSummaryData = JSON.parse(document.getElementById('excelBtn').dataset.excelDivisionSummaryData || '[]');
+    const excelRemarksData = JSON.parse(document.getElementById('excelBtn').dataset.excelRemarksData || '[]');
+    if (excelSummaryData.length === 0 && excelDivisionSummaryData.length === 0 && excelRemarksData.length === 0) {
+      alert('No data available to export to Excel.');
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    if (excelSummaryData.length > 0) {
+      const wsSummary = XLSX.utils.json_to_sheet(excelSummaryData);
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Category Summary');
+    }
+    if (excelDivisionSummaryData.length > 0) {
+      const wsDivisionSummary = XLSX.utils.json_to_sheet(excelDivisionSummaryData);
+      XLSX.utils.book_append_sheet(wb, wsDivisionSummary, 'Division Summary');
+    }
+    if (excelRemarksData.length > 0) {
+      const wsRemarks = XLSX.utils.json_to_sheet(excelRemarksData);
+      XLSX.utils.book_append_sheet(wb, wsRemarks, 'Remarks');
+    }
+    const today = new Date().toISOString().split('T')[0];
+    XLSX.write(wb, `Crew_Summary_Remarks_${today}.xlsx`);
+  } catch (err) {
+    console.error('Excel Export Error:', err);
+    alert('Failed to export Excel. Please check the console for details or try again.');
   }
-  const wb = XLSX.utils.book_new();
-  if (excelSummaryData.length > 0) {
-    const wsSummary = XLSX.utils.json_to_sheet(excelSummaryData);
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Category Summary');
+}
+
+async function showPdfPreview() {
+  try {
+    const previewContent = document.getElementById('previewContent');
+    previewContent.innerHTML = '';
+
+    const pageWidth = 297; // A4 landscape width in mm
+    const pageHeight = 210; // A4 landscape height in mm
+    const margin = pdfSettings.margin;
+    const contentWidth = pageWidth - 2 * margin;
+    const contentHeight = pageHeight - 2 * margin;
+    const lineHeight = pdfSettings.fontSize * 0.3528 * 1.2;
+
+    const header = document.querySelector('.header-buttons');
+    const topBar = document.querySelector('.top-bar');
+    const canvas = await html2canvas(document.body, {
+      scale: 0.5,
+      useCORS: true,
+      dpi: 72,
+      letterRendering: true,
+      scrollX: 0,
+      scrollY: 0,
+      width: header.offsetWidth,
+      height: header.offsetHeight + topBar.offsetHeight + 15
+    });
+    const imgWidth = contentWidth / 2;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let yOffset = margin + 10;
+    let pageCount = 1;
+    let content = [];
+
+    const headerHeight = imgHeight * 2.835;
+    content.push(`<strong>Header & Top Bar</strong> (${headerHeight.toFixed(1)}mm)<br><img src="${canvas.toDataURL('image/jpeg', 0.5)}" style="width:${imgWidth}px; height:${imgHeight}px;">`);
+    yOffset += headerHeight;
+
+    const summaryRows = summaryData.length + 1;
+    const summaryHeight = summaryRows * lineHeight;
+    if (yOffset + summaryHeight > contentHeight) {
+      pageCount++;
+      content.push('--- Page Break ---');
+      yOffset = margin;
+    }
+    content.push(`<strong>Category Summary Table</strong> (${summaryRows} rows, ${summaryHeight.toFixed(1)}mm)`);
+    yOffset += summaryHeight + 5;
+
+    if (showDivisionSummary) {
+      const divisionRows = Object.keys(divisionSummaryData).length + 1;
+      const divisionHeight = divisionRows * lineHeight;
+      if (yOffset + divisionHeight > contentHeight) {
+        pageCount++;
+        content.push('--- Page Break ---');
+        yOffset = margin;
+      }
+      content.push(`<strong>Division Summary Table</strong> (${divisionRows} rows, ${divisionHeight.toFixed(1)}mm)`);
+      yOffset += divisionHeight + 5;
+    }
+
+    const remarksRows = remarksData.length + (buttonDivision === 'ALL' ? new Set(remarksData.map(r => r.division)).size : 0);
+    const remarksHeight = remarksRows * lineHeight;
+    const remarksPages = Math.ceil((yOffset + remarksHeight) / contentHeight);
+    content.push(`<strong>Remarks Table</strong> (${remarksRows} rows, ${remarksHeight.toFixed(1)}mm)`);
+    pageCount += remarksPages - 1;
+
+    const paginationHeight = 10;
+    if (yOffset + paginationHeight > contentHeight) {
+      pageCount++;
+      content.push('--- Page Break ---');
+    }
+    const pagination = document.querySelector('.pagination');
+    const paginationCanvas = await html2canvas(pagination, {
+      scale: 0.5,
+      useCORS: true,
+      dpi: 72,
+      letterRendering: true
+    });
+    const paginationImgWidth = contentWidth / 2;
+    const paginationImgHeight = (paginationCanvas.height * paginationImgWidth) / paginationCanvas.width;
+    content.push(`<strong>Pagination Controls</strong> (${paginationHeight.toFixed(1)}mm)<br><img src="${paginationCanvas.toDataURL('image/jpeg', 0.5)}" style="width:${paginationImgWidth}px; height:${paginationImgHeight}px;">`);
+
+    let currentPage = 1;
+    let pageContent = [];
+    content.forEach(item => {
+      if (item === '--- Page Break ---') {
+        previewContent.insertAdjacentHTML('beforeend', `<div class="preview-page"><strong>Page ${currentPage}</strong><br>${pageContent.join('<br>')}</div>`);
+        currentPage++;
+        pageContent = [];
+      } else {
+        pageContent.push(item);
+      }
+    });
+    if (pageContent.length > 0) {
+      previewContent.insertAdjacentHTML('beforeend', `<div class="preview-page"><strong>Page ${currentPage}</strong><br>${pageContent.join('<br>')}</div>`);
+    }
+
+    const estimatedSize = (summaryRows + (showDivisionSummary ? Object.keys(divisionSummaryData).length : 0) + remarksRows) * 0.03 + 1.0;
+    previewContent.insertAdjacentHTML('beforeend', `<p>Estimated File Size: ${estimatedSize.toFixed(1)} MB</p>`);
+
+    document.getElementById('pdfPreviewModal').style.display = 'flex';
+  } catch (err) {
+    console.error('PDF Preview Error:', err);
+    alert('Failed to generate PDF preview. Please check the console for details or try again.');
   }
-  if (excelDivisionSummaryData.length > 0) {
-    const wsDivisionSummary = XLSX.utils.json_to_sheet(excelDivisionSummaryData);
-    XLSX.utils.book_append_sheet(wb, wsDivisionSummary, 'Division Summary');
-  }
-  if (excelRemarksData.length > 0) {
-    const wsRemarks = XLSX.utils.json_to_sheet(excelRemarksData);
-    XLSX.utils.book_append_sheet(wb, wsRemarks, 'Remarks');
-  }
-  const today = new Date().toISOString().split('T')[0];
-  XLSX.write(wb, `Crew_Summary_Remarks_${today}.xlsx`);
 }
 
 async function exportToPDF() {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 10;
-  let yOffset = margin;
+  try {
+    document.getElementById('pdfPreviewModal').style.display = 'none';
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = pdfSettings.margin;
+    const contentWidth = pageWidth - 2 * margin;
 
-  // Add Title
-  doc.setFontSize(16);
-  doc.setTextColor(0, 51, 102);
-  doc.text('Crew Performance Report', pageWidth / 2, yOffset, { align: 'center' });
-  yOffset += 10;
+    if (!summaryData.length && !remarksData.length) {
+      alert('No data available to export to PDF.');
+      return;
+    }
 
-  // Capture Summary Table
-  const summaryTable = document.getElementById('summaryTable');
-  if (summaryData.length > 0) {
-    doc.setFontSize(12);
-    doc.text('Crew Performance Summary', margin, yOffset);
-    yOffset += 5;
-    const canvas = await html2canvas(summaryTable, { scale: 2 });
-    const imgWidth = pageWidth - 2 * margin;
+    const header = document.querySelector('.header-buttons');
+    const topBar = document.querySelector('.top-bar');
+    const canvas = await html2canvas(document.body, {
+      scale: 1.0,
+      useCORS: true,
+      dpi: 96,
+      letterRendering: true,
+      scrollX: 0,
+      scrollY: 0,
+      width: header.offsetWidth,
+      height: header.offsetHeight + topBar.offsetHeight + 15
+    });
+    const imgWidth = contentWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    if (yOffset + imgHeight > pageHeight - margin) {
+    const quality = canvas.width * canvas.height > 5000000 ? 0.6 : 0.7;
+    doc.addImage(canvas.toDataURL('image/jpeg', quality), 'JPEG', margin, margin, imgWidth, imgHeight);
+
+    let yOffset = margin + imgHeight + 5;
+
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(pdfSettings.fontSize);
+    doc.text('Category Summary', pageWidth / 2, yOffset, { align: 'center' });
+    yOffset += 4;
+    doc.autoTable({
+      startY: yOffset,
+      head: [['SN', 'Category', 'No of Checks Conducted', 'Deficiencies Noticed', 'Divisions Deficiencies']],
+      body: summaryData.map(row => [row.sn, row.category, row.checks, row.deficiencies, row.divisionsWithDef]),
+      theme: 'grid',
+      styles: {
+        font: 'Roboto',
+        fontSize: pdfSettings.fontSize,
+        textColor: [26, 26, 26],
+        lineColor: [224, 230, 239],
+        lineWidth: 0.2,
+        cellPadding: 0.5,
+        overflow: 'linebreak',
+        minCellHeight: pdfSettings.fontSize * 0.3528 * 1.2,
+        rowPageBreak: 'avoid'
+      },
+      headStyles: {
+        fillColor: [0, 116, 217],
+        textColor: [255, 255, 255]
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 'auto' },
+        3: { cellWidth: 'auto' },
+        4: { cellWidth: 'auto' }
+      },
+      didParseCell: (data) => {
+        if (data.section === 'body') {
+          data.cell.styles.cellWidth = Math.max(60 / 2.835 * pdfSettings.columnWidthMultiplier, data.cell.raw.toString().length * pdfSettings.fontSize * 0.1);
+        }
+      },
+      margin: { top: margin, left: margin, right: margin }
+    });
+    yOffset = doc.lastAutoTable.finalY + 5;
+
+    if (showDivisionSummary) {
+      doc.text('Division-Based Summary', pageWidth / 2, yOffset, { align: 'center' });
+      yOffset += 4;
+      doc.autoTable({
+        startY: yOffset,
+        head: [['Division', 'Total SPMs', 'SPM Def.', 'Total CVVRS', 'CVVRS Def.', 'CUG Checked', 'CUG Misused', 'Personal Mob. Checked', 'Personal Mob. Misused', 'Mob. Declaration', 'Mismatch', 'Lobby + Online', 'Mob. Def.', 'Ambush: Yellow-Yellow DFC', 'Def: Yellow-Yellow DFC', 'Ambush: Yellow IR', 'Def: Yellow IR', 'ALP RS Valve Check', 'Def: ALP RS Valve', 'MEMU Speed at PF', 'OverSpeeding Cases', 'IBS Signal Passed', 'Def: IBS Signal', 'Running Room (Wee Hours)', 'Def: Running Room', 'Stabling Checked', 'Def: Stabling', 'Shunting Checked', 'Def: Shunting']],
+        body: Object.keys(divisionSummaryData).map(division => {
+          const g = divisionSummaryData[division];
+          return [division, g.spm, g.defSpm, g.cvvrs, g.defCvvrs, g.cugChecked, g.cugMisused, g.personalMobChecked, g.personalMobMisused, g.mobDeclaration, g.mismatch, g.lobbyOnline, g.mobDef, g.yellowYellowDfc, g.defYellowYellowDfc, g.yellowIr, g.defYellowIr, g.alpRsValve, g.defAlpRsValve, g.memuSpeed, g.overspeeding, g.ibsSignal, g.defIbsSignal, g.runningRoom, g.defRunningRoom, g.stablingChecked, g.defStabling, g.shuntingChecked, g.defShunting];
+        }),
+        theme: 'grid',
+        styles: {
+          font: 'Roboto',
+          fontSize: pdfSettings.fontSize,
+          textColor: [26, 26, 26],
+          lineColor: [224, 230, 239],
+          lineWidth: 0.2,
+          cellPadding: 0.5,
+          overflow: 'linebreak',
+          minCellHeight: pdfSettings.fontSize * 0.3528 * 1.2,
+          rowPageBreak: 'avoid'
+        },
+        headStyles: {
+          fillColor: [0, 116, 217],
+          textColor: [255, 255, 255]
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        columnStyles: Object.fromEntries(Array(29).fill().map((_, i) => [i, { cellWidth: 'auto' }])),
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            data.cell.styles.cellWidth = Math.max(60 / 2.835 * pdfSettings.columnWidthMultiplier, data.cell.raw.toString().length * pdfSettings.fontSize * 0.1);
+          }
+        },
+        margin: { top: margin, left: margin, right: margin }
+      });
+      yOffset = doc.lastAutoTable.finalY + 5;
+    }
+
+    doc.text('Remarks Details', pageWidth / 2, yOffset, { align: 'center' });
+    yOffset += 4;
+    const remarksTableData = [];
+    remarksData.forEach(row => {
+      if (row.isHeader) {
+        remarksTableData.push([{ content: row.division, colSpan: 7, styles: { fillColor: [224, 230, 239], textColor: [26, 26, 26], fontStyle: 'bold', halign: 'left' } }]);
+      } else {
+        const catClass = row.class.split(' ')[0] || 'cat-spm';
+        const fillColor = {
+          'cat-spm': [230, 243, 255],
+          'cat-cvvrs': [230, 255, 230],
+          'cat-cug': [255, 230, 230],
+          'cat-personal-mob': [255, 245, 230],
+          'cat-mob-declaration': [230, 230, 255],
+          'cat-lobby-online': [240, 230, 255],
+          'cat-yellow-dfc': [255, 255, 230],
+          'cat-yellow-ir': [230, 255, 240],
+          'cat-alp-rs': [255, 230, 240],
+          'cat-memu-speed': [230, 250, 255],
+          'cat-ibs-signal': [240, 255, 230],
+          'cat-running-room': [255, 230, 255],
+          'cat-stabling': [230, 240, 255],
+          'cat-shunting': [255, 250, 230]
+        }[catClass] || [255, 255, 255];
+        remarksTableData.push([
+          { content: row.date },
+          { content: row.division },
+          { content: row.categories.join(', '), styles: { fillColor } },
+          { content: row.remarks, styles: { fillColor } },
+          { content: row.e_date },
+          { content: row.action_taken },
+          { content: row.status }
+        ]);
+      }
+    });
+    doc.autoTable({
+      startY: yOffset,
+      head: [['Date', 'Division', 'Category', 'Remarks', 'E_Date', 'Action Taken Remarks', 'Status']],
+      body: remarksTableData,
+      theme: 'grid',
+      styles: {
+        font: 'Roboto',
+        fontSize: pdfSettings.fontSize,
+        textColor: [26, 26, 26],
+        lineColor: [224, 230, 239],
+        lineWidth: 0.2,
+        cellPadding: 0.5,
+        overflow: 'linebreak',
+        minCellHeight: pdfSettings.fontSize * 0.3528 * 1.2,
+        rowPageBreak: 'avoid'
+      },
+      headStyles: {
+        fillColor: [0, 116, 217],
+        textColor: [255, 255, 255]
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 'auto' },
+        3: { cellWidth: 'auto' },
+        4: { cellWidth: 'auto' },
+        5: { cellWidth: 'auto' },
+        6: { cellWidth: 'auto' }
+      },
+      didParseCell: (data) => {
+        if (data.section === 'body' && !data.row.cells[0].styles.fillColor) {
+          data.cell.styles.cellWidth = Math.max(60 / 2.835 * pdfSettings.columnWidthMultiplier, data.cell.raw.toString().length * pdfSettings.fontSize * 0.1);
+        }
+      },
+      margin: { top: margin, left: margin, right: margin }
+    });
+    yOffset = doc.lastAutoTable.finalY + 5;
+
+    const pagination = document.querySelector('.pagination');
+    const paginationCanvas = await html2canvas(pagination, {
+      scale: 1.0,
+      useCORS: true,
+      dpi: 96,
+      letterRendering: true
+    });
+    const paginationImgWidth = contentWidth;
+    const paginationImgHeight = (paginationCanvas.height * paginationImgWidth) / paginationCanvas.width;
+    if (yOffset + paginationImgHeight > pageHeight - margin) {
       doc.addPage();
       yOffset = margin;
     }
-    doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, yOffset, imgWidth, imgHeight);
-    yOffset += imgHeight + 10;
+    doc.addImage(paginationCanvas.toDataURL('image/jpeg', quality), 'JPEG', margin, yOffset, paginationImgWidth, paginationImgHeight);
+
+    const today = new Date().toISOString().split('T')[0];
+    doc.save(`Crew_Summary_Remarks_${today}.pdf`);
+  } catch (err) {
+    console.error('PDF Export Error:', err);
+    alert('Failed to export PDF. Please check the console for details or try again.');
   }
-
-  // Capture Remarks Table (all data, not paginated)
-  if (remarksData.length > 0) {
-    doc.setFontSize(12);
-    doc.text('Remarks Details', margin, yOffset);
-    yOffset += 5;
-
-    // Create temporary table for all remarks data
-    const tempTable = document.createElement('table');
-    tempTable.className = 'pdf-table';
-    tempTable.innerHTML = document.getElementById('remarksHeader').innerHTML;
-    const tempBody = document.createElement('tbody');
-
-    // Split remarksData into chunks to fit on pages
-    const rowsPerPage = 30; // Adjusted for PDF to fit ~30 rows per page
-    const rowHeight = 10; // Approximate height per row in mm
-    let currentChunk = [];
-
-    remarksData.forEach((row, index) => {
-      if (row.isHeader) {
-        currentChunk.push(`<tr><td colspan="7" class="division-group-header">${row.division}</td></tr>`);
-      } else {
-        currentChunk.push(`
-          <tr>
-            <td>${row.date}</td>
-            <td>${row.division}</td>
-            <td class="${row.class}">${row.categories.join(', ')}</td>
-            <td class="${row.class}">${row.remarks}</td>
-            <td>${row.e_date}</td>
-            <td>${row.action_taken}</td>
-            <td>${row.status}</td>
-          </tr>
-        `);
-      }
-
-      // Check if current chunk should be rendered
-      if (currentChunk.length >= rowsPerPage || index === remarksData.length - 1) {
-        tempBody.innerHTML = currentChunk.join('');
-        tempTable.appendChild(tempBody);
-        document.body.appendChild(tempTable);
-        const canvas = document.createElement('canvas');
-        canvas.width = pageWidth * 2 * 2; // Scale for better resolution
-        canvas.height = currentChunk.length * rowHeight * 2;
-        const context = canvas.getContext('2d');
-        context.scale(2, 2);
-
-        return html2canvas(tempTable, { canvas: canvas }).then(canvas => {
-          const imgWidth = pageWidth - 2 * margin;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          if (yOffset + imgHeight > pageHeight - margin) {
-            doc.addPage();
-            yOffset = margin;
-          }
-          doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, yOffset, imgWidth, imgHeight);
-          yOffset += imgHeight + 5;
-          document.body.removeChild(tempTable);
-          currentChunk = [];
-          if (index < remarksData.length - 1) {
-            // Add header again for next page
-            doc.setFontSize(12);
-            doc.text('Remarks Details (Continued)', margin, yOffset);
-            yOffset += 5;
-          }
-        });
-      }
-    });
-  }
-
-  const today = new Date().toISOString().split('T')[0];
-  doc.save(`Crew_Summary_Remarks_${today}.pdf`);
 }
 </script>
 </body>
