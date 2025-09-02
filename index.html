@@ -1,446 +1,544 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Crew Performance Dashboard</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      min-height: 100vh;
       font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
       background: #f5f7fa;
       color: #1a1a1a;
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
+      overflow-x: hidden;
       box-sizing: border-box;
+    }
+    h2 {
+      background: linear-gradient(90deg, #003366 50%, #0074D9 100%);
+      color: #fff;
+      padding: 14px 0;
+      text-align: center;
+      margin: 0 0 12px 0;
+      font-size: 1.8rem;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0, 51, 102, 0.2);
     }
     .top-bar {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      padding: 0.75rem;
-      background: #fff;
-      border-bottom: 1px solid #e0e6ef;
+      align-items: center;
+      gap: 12px;
       justify-content: flex-start;
-    }
-    .header-buttons {
-      display: flex;
+      margin: 10px 0 0 10px;
       flex-wrap: wrap;
-      gap: 0.5rem;
-      justify-content: center;
-      padding: 1rem;
-      background: linear-gradient(to right, #003366, #0074D9);
     }
-    .date-picker, .division-input {
-      padding: 0.5rem;
+    .date-picker {
+      padding: 6px 8px;
       font-size: 0.95rem;
-      border-radius: 0.375rem;
+      border-radius: 5px;
       border: 1px solid #b0c4de;
       background: #f8fafc;
       color: #003366;
       outline: none;
       width: 200px;
     }
-    .btn, .header-btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
+    .screenshot-btn, .analyze-btn, .excel-btn, .csv-btn, .reset-btn, .chart-export-btn {
+      padding: 6px 12px;
+      border-radius: 5px;
       border: 1px solid #0074D9;
       background: #0074D9;
       color: #fff;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      transition: background 0.2s;
     }
-    .btn:hover, .header-btn:hover {
+    .screenshot-btn:hover, .analyze-btn:hover, .excel-btn:hover, .csv-btn:hover, .reset-btn:hover, .chart-export-btn:hover {
       background: #003366;
-      transform: scale(1.05);
     }
-    .filter-btn {
-      padding: 0.5rem 1rem;
-      margin: 0.25rem;
-      border-radius: 0.375rem;
-      border: 1px solid #0074D9;
-      background: #e6f0fa;
+    .metric-filter {
+      padding: 6px 8px;
+      font-size: 0.95rem;
+      border-radius: 5px;
+      border: 1px solid #b0c4de;
+      background: #f8fafc;
       color: #003366;
-      font-weight: 500;
+      outline: none;
+    }
+    .chart-type-toggle {
+      padding: 6px 12px;
+      border-radius: 5px;
+      border: 1px solid #0074D9;
+      background: #fff;
+      color: #0074D9;
       cursor: pointer;
-      transition: background 0.2s, border-color 0.2s;
+      font-weight: 500;
+      transition: all 0.2s ease;
     }
-    .filter-btn:hover {
-      background: #b0c4de;
+    .chart-type-toggle.active {
+      background: #0074D9;
+      color: #fff;
     }
-    .filter-btn.active {
+    #divisionBtnBar {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 0 auto 12px;
+      flex-wrap: wrap;
+      max-width: 90%;
+      padding: 0 10px;
+    }
+    .division-btn {
+      padding: 5px 14px;
+      font-size: 0.9rem;
+      border-radius: 5px;
+      border: 1px solid #0074D9;
+      background: #fff;
+      color: #0074D9;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    .division-btn:hover {
+      background: #0074D9;
+      color: #fff;
+      border-color: #003366;
+      box-shadow: 0 2px 4px rgba(0, 51, 102, 0.2);
+    }
+    .division-btn.active {
       background: #0074D9;
       color: #fff;
       border-color: #003366;
     }
-    .table-container {
+    .division-btn.all {
+      border-color: #666;
+      color: #666;
+      background: #f5f7fa;
+    }
+    .division-btn.all.active, .division-btn.all:hover {
+      background: #003366;
+      color: #fff;
+      border-color: #003366;
+    }
+    .charts-grid, .ambush-sub-charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
       max-width: 98%;
-      margin: 1rem auto;
+      margin: 0 auto 16px;
+      padding: 0 8px;
+    }
+    .chart-container {
       background: #fff;
-      border-radius: 0.5rem;
+      border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0, 51, 102, 0.1);
-      overflow-x: auto;
-      padding: 1rem;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      min-height: 280px;
+      height: 100%;
+      position: relative;
+    }
+    .chart-container h4 {
+      text-align: center;
+      margin: 0 0 8px;
+      color: #003366;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+    .chart-container canvas {
+      width: 100% !important;
+      height: calc(25vh - 24px) !important;
+      max-height: 240px;
+    }
+    .trend-summary {
+      margin: 12px auto;
+      padding: 10px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e0e6ef;
+      max-width: 98%;
+      text-align: center;
+    }
+    .trend-summary h4 {
+      margin: 0 0 8px;
+      color: #003366;
+      font-size: 1.2rem;
+    }
+    .trend-summary p {
+      margin: 5px 0;
+      font-size: 0.9rem;
     }
     table {
-      width: 100%;
+      margin: 0 auto 24px;
       border-collapse: collapse;
-      table-layout: auto;
+      width: 98%;
+      max-width: 98%;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0, 51, 102, 0.1);
+      border-radius: 8px;
+      overflow: hidden;
     }
-    th {
+    table th, table td {
+      border: 1px solid #e0e6ef;
+      padding: 8px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    table th {
       background: #0074D9;
       color: #fff;
       font-weight: 600;
+      letter-spacing: 0.5px;
       cursor: pointer;
-      position: sticky;
-      top: 0;
-      z-index: 10;
     }
-    th:hover {
+    table th:hover {
       background: #003366;
     }
-    th, td {
-      border: 1px solid #e0e6ef;
-      padding: 0.5rem;
-      text-align: center;
-      font-size: 0.9rem;
-      min-width: 60px;
-    }
-    tr:nth-child(even) td {
+    table tr:nth-child(even) td {
       background: #f8fafc;
     }
-    tr:hover td {
+    table tr:hover td {
       background: #e6f0fa;
     }
-    .section-header {
-      margin: 2rem 0 1rem;
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: #003366;
-      text-align: center;
+    .highlight-deficiency {
+      background: #ffcccc !important;
     }
-    .button-container {
-      margin: 1rem auto;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-    .pagination {
-      margin: 1rem auto;
-      display: flex;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-    .pagination-btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      border: 1px solid #0074D9;
-      background: #e6f0fa;
-      color: #003366;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .pagination-btn:hover {
-      background: #b0c4de;
-    }
-    .pagination-btn.disabled {
-      background: #d3d3d3;
-      cursor: not-allowed;
-    }
-    .division-group-header {
-      background: #e0e6ef;
-      font-weight: bold;
-      text-align: left;
-      padding: 0.5rem;
-    }
-    .hidden {
-      display: none;
-    }
-    .cat-spm { background-color: #e6f3ff; }
-    .cat-cvvrs { background-color: #e6ffe6; }
-    .cat-cug { background-color: #ffe6e6; }
-    .cat-personal-mob { background-color: #fff5e6; }
-    .cat-mob-declaration { background-color: #e6e6ff; }
-    .cat-lobby-online { background-color: #f0e6ff; }
-    .cat-yellow-dfc { background-color: #ffffe6; }
-    .cat-yellow-ir { background-color: #e6fff0; }
-    .cat-alp-rs { background-color: #ffe6f0; }
-    .cat-memu-speed { background-color: #e6faff; }
-    .cat-ibs-signal { background-color: #f0ffe6; }
-    .cat-running-room { background-color: #ffe6ff; }
-    .cat-stabling { background-color: #e6f0ff; }
-    .cat-shunting { background-color: #fffae6; }
-    .modal {
+    .popup {
       display: none;
       position: fixed;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.8);
       z-index: 1000;
-      justify-content: center;
-      align-items: center;
-    }
-    .modal-content {
-      background: #fff;
-      padding: 1.5rem;
-      border-radius: 0.5rem;
-      max-width: 600px;
-      width: 90%;
-      max-height: 80vh;
       overflow-y: auto;
+      padding: 20px;
+      box-sizing: border-box;
     }
-    .modal-content h2 {
-      font-size: 1.25rem;
-      margin-bottom: 1rem;
-      color: #003366;
-    }
-    .preview-page {
-      border: 1px solid #e0e6ef;
-      padding: 0.5rem;
-      margin: 0.5rem 0;
+    .popup-content {
       background: #fff;
-      font-size: 0.8rem;
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 98%;
+      margin: 20px auto;
+      position: relative;
+      overflow-x: auto;
     }
-    .preview-page img {
-      max-width: 100%;
-      height: auto;
+    .popup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .popup-header h3 {
+      margin: 0;
+      color: #003366;
+      font-size: 1.5rem;
+    }
+    .popup-header .button-group {
+      display: flex;
+      gap: 8px;
+    }
+    .close-btn {
+      padding: 8px 16px;
+      border: none;
+      background: #ff4d4d;
+      color: #fff;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .close-btn:hover {
+      background: #cc0000;
+    }
+    .analysis-table, .ambush-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      table-layout: auto;
+    }
+    .analysis-table th, .analysis-table td, .ambush-table th, .ambush-table td {
+      border: 1px solid #e0e6ef;
+      padding: 10px;
+      text-align: center;
+      font-size: 0.9rem;
+      min-width: 80px;
+    }
+    .analysis-table th, .ambush-table th {
+      background: #0074D9;
+      color: #fff;
+      font-weight: 600;
+    }
+    .analysis-table tr:nth-child(even) td, .ambush-table tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+    .analysis-table tr:hover td, .ambush-table tr:hover td {
+      background: #e6f0fa;
+    }
+    .insights {
+      margin-top: 20px;
+      padding: 10px;
+      background: #f8fafc;
+      border-radius: 8px;
       border: 1px solid #e0e6ef;
     }
-    .preview-controls {
-      margin-top: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .preview-controls label {
-      font-weight: 500;
+    .insights h4 {
+      margin: 0 0 10px;
       color: #003366;
+      font-size: 1.2rem;
     }
-    .preview-controls input[type="range"] {
+    .insights p {
+      margin: 5px 0;
+      font-size: 0.9rem;
+    }
+    .screenshot-header {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
+      background: #003366;
+      color: #fff;
+      padding: 10px;
+      text-align: center;
+      font-size: 1rem;
+      z-index: 1001;
     }
-    .preview-controls .btn {
-      margin-top: 0.5rem;
+    .hidden { display: none; }
+    @media (max-width: 1200px) {
+      .charts-grid, .ambush-sub-charts {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
     }
     @media (max-width: 768px) {
-      .top-bar, .button-container, .header-buttons {
-        flex-direction: column;
-        align-items: stretch;
+      .charts-grid, .ambush-sub-charts {
+        grid-template-columns: 1fr;
       }
-      .date-picker, .division-input {
+      .chart-container {
+        min-height: 200px;
+      }
+      .chart-container canvas {
+        height: calc(20vh - 16px) !important;
+        max-height: 200px;
+      }
+      h2 {
+        font-size: 1.5rem;
+      }
+      .top-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .search-bar, .date-picker, .metric-filter {
         width: 100%;
       }
-      th, td {
-        font-size: 0.8rem;
-        padding: 0.4rem;
-        min-width: 50px;
+      .popup-content {
+        padding: 10px;
       }
-      .table-container {
-        padding: 0.5rem;
+      .analysis-table th, .analysis-table td, .ambush-table th, .ambush-table td {
+        font-size: 0.8rem;
+        padding: 6px;
+        min-width: 60px;
       }
     }
     @media (max-width: 480px) {
-      th, td {
-        font-size: 0.7rem;
-        padding: 0.3rem;
-        min-width: 40px;
-      }
-      .btn, .header-btn, .filter-btn, .pagination-btn {
-        font-size: 0.8rem;
-        padding: 0.4rem 0.8rem;
-      }
-      .section-header {
+      h2 {
         font-size: 1.2rem;
       }
-      .modal-content {
-        width: 95%;
-        padding: 1rem;
+      .search-bar, .date-picker, .metric-filter, .division-btn, .analyze-btn, .screenshot-btn, .excel-btn, .csv-btn, .reset-btn, .chart-export-btn {
+        font-size: 0.8rem;
       }
-    }
-    .pdf-table {
-      font-size: 8px;
-      width: 100%;
-      border-collapse: collapse;
-    }
-    .pdf-table th, .pdf-table td {
-      border: 1px solid #e0e6ef;
-      padding: 3px;
-      text-align: center;
-      word-break: break-word;
-      white-space: normal;
-      min-width: 60px;
-    }
-    .pdf-table th {
-      background: #0074D9;
-      color: #fff;
-    }
-    .pdf-table tr:nth-child(even) td {
-      background: #f8fafc;
-    }
-    .pdf-table .division-group-header {
-      background: #e0e6ef;
-      text-align: left;
-      font-weight: bold;
+      .popup-header h3 {
+        font-size: 1.2rem;
+      }
+      .analysis-table th, .analysis-table td, .ambush-table th, .ambush-table td {
+        font-size: 0.7rem;
+        padding: 4px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="header-buttons">
-    <button class="header-btn" id="page1Btn">Crew Performance Dashboard</button>
-    <button class="header-btn" id="page2Btn">Page 2 (Coming Soon)</button>
-    <button class="header-btn" id="page3Btn">Page 3 (Coming Soon)</button>
-    <button class="header-btn" id="page4Btn">Page 4 (Coming Soon)</button>
-    <button class="header-btn" id="page5Btn">Page 5 (Coming Soon)</button>
+<div class="top-bar">
+  <input type="text" id="datePicker" class="date-picker" placeholder="Select Date Range">
+  <select id="metricFilter" class="metric-filter">
+    <option value="all">All Metrics</option>
+    <option value="spm">SPM</option>
+    <option value="cvvrs">CVVRS</option>
+    <option value="mobile">Mobile</option>
+    <option value="ambush">Ambush</option>
+  </select>
+  <button class="reset-btn" id="resetBtn">🔄 Reset Filters</button>
+  <button class="screenshot-btn" id="screenshotBtn">📸 Screenshot</button>
+  <button class="analyze-btn" id="analyzeBtn">📊 Analyze Data</button>
+  <button class="excel-btn" id="deficiencyToggleBtn" style="background:#ff4d4d;border-color:#ff4d4d;">Deficiencies</button>
+  <div>
+    <button class="chart-type-toggle" id="barToggle" data-type="bar">Bar</button>
+    <button class="chart-type-toggle" id="lineToggle" data-type="line">Line</button>
   </div>
+</div>
 
-  <div class="top-bar">
-    <input type="text" id="datePicker" class="date-picker" placeholder="Select Date Range">
-    <input type="text" id="divisionInput" class="division-input" placeholder="Enter Division (Optional)">
-    <button class="btn" id="resetBtn">🔄 Reset Filters</button>
-    <button class="btn" id="excelBtn">📥 Export to Excel</button>
-    <button class="btn" id="pdfBtn">📄 Export to PDF</button>
-    <button class="btn" id="toggleDivisionSummaryBtn">📊 Show Division Summary</button>
-  </div>
+<h2>🚦 Crew Performance Dashboard</h2>
 
-  <div class="table-container">
-    <table id="summaryTable" class="pdf-table">
-      <thead id="summaryHeader"></thead>
-      <tbody id="summaryBody"></tbody>
-    </table>
-  </div>
+<div class="trend-summary" id="trendSummary"></div>
 
-  <h3 class="section-header hidden" id="divisionSummaryHeader">Division-Based Summary</h3>
-  <div class="table-container hidden" id="divisionSummaryContainer">
-    <table id="divisionSummaryTable" class="pdf-table">
-      <thead id="divisionSummaryTableHeader"></thead>
-      <tbody id="divisionSummaryTableBody"></tbody>
-    </table>
-  </div>
+<div id="divisionBtnBar"></div>
 
-  <h3 class="section-header">Remarks Details</h3>
-  <div class="button-container" id="divisionButtons"></div>
-  <div class="button-container" id="categoryButtons"></div>
-  <div class="table-container">
-    <table id="remarksTable" class="pdf-table">
-      <thead id="remarksHeader"></thead>
-      <tbody id="remarksBody"></tbody>
-    </table>
+<div class="charts-grid">
+  <div class="chart-container" id="spmChartContainer">
+    <h4>SPM Performance</h4>
+    <canvas id="spmChart"></canvas>
+    <button class="chart-export-btn" data-chart="spmChart"> </button>
   </div>
-  <div class="pagination">
-    <button class="pagination-btn" id="prevPageBtn">Previous</button>
-    <span id="pageInfo"></span>
-    <button class="pagination-btn" id="nextPageBtn">Next</button>
+  <div class="chart-container" id="cvvrsChartContainer">
+    <h4>CVVRS Performance</h4>
+    <canvas id="cvvrsChart"></canvas>
+    <button class="chart-export-btn" data-chart="cvvrsChart"> </button>
   </div>
+  <div class="chart-container" id="mobileChartContainer">
+    <h4>Mobile Performance</h4>
+    <canvas id="mobileChart"></canvas>
+    <button class="chart-export-btn" data-chart="mobileChart"> </button>
+  </div>
+  <div class="chart-container" id="ambushChartContainer">
+    <h4>Ambush Performance</h4>
+    <canvas id="ambushChart"></canvas>
+    <button class="chart-export-btn" data-chart="ambushChart"> </button>
+  </div>
+</div>
 
-  <div id="pdfPreviewModal" class="modal">
-    <div class="modal-content">
-      <h2>PDF Page Preview</h2>
-      <div id="previewContent"></div>
-      <div class="preview-controls">
-        <label>Font Size (pt): <span id="fontSizeValue">8</span></label>
-        <input type="range" id="fontSizeSlider" min="6" max="10" value="8" step="0.5">
-        <label>Column Width Multiplier: <span id="columnWidthValue">1.0</span></label>
-        <input type="range" id="columnWidthSlider" min="0.8" max="1.5" value="1.0" step="0.1">
-        <label>Margins (mm): <span id="marginValue">8</span></label>
-        <input type="range" id="marginSlider" min="5" max="12" value="8" step="1">
-        <button class="btn" id="confirmPdfBtn">Confirm and Export</button>
-        <button class="btn" id="cancelPdfBtn">Cancel</button>
+<div class="ambush-sub-charts">
+  <div class="chart-container" id="ambush1ChartContainer">
+    <h4>Yellow Signal DFC</h4>
+    <canvas id="ambush1Chart"></canvas>
+    <button class="chart-export-btn" data-chart="ambush1Chart"> </button>
+  </div>
+  <div class="chart-container" id="ambush2ChartContainer">
+    <h4>Yellow Signal IR</h4>
+    <canvas id="ambush2Chart"></canvas>
+    <button class="chart-export-btn" data-chart="ambush2Chart"> </button>
+  </div>
+  <div class="chart-container" id="ambush3ChartContainer">
+    <h4>ALP holding RS valve</h4>
+    <canvas id="ambush3Chart"></canvas>
+    <button class="chart-export-btn" data-chart="ambush3Chart"> </button>
+  </div>
+  <div class="chart-container" id="ambush4ChartContainer">
+    <h4>MEMUs/EMUs Speed checked at PF</h4>
+    <canvas id="ambush4Chart"></canvas>
+    <button class="chart-export-btn" data-chart="ambush4Chart"> </button>
+  </div>
+  <div class="chart-container" id="ambush5ChartContainer">
+    <h4>IBH Signal Passed as per Rule</h4>
+    <canvas id="ambush5Chart"></canvas>
+    <button class="chart-export-btn" data-chart="ambush5Chart"> </button>
+  </div>
+  <div class="chart-container" id="ambush6ChartContainer">
+    <h4>Running room wee Hours</h4>
+    <canvas id="ambush6Chart"></canvas>
+    <button class="chart-export-btn" data-chart="ambush6Chart"> </button>
+  </div>
+  <div class="chart-container" id="ambush7ChartContainer">
+    <h4>Stabling/Securing of Loads</h4>
+    <canvas id="ambush7Chart"></canvas>
+    <button class="chart-export-btn" data-chart="ambush7Chart"> </button>
+  </div>
+  <div class="chart-container" id="ambush8ChartContainer">
+    <h4>Shunting operations Checked</h4>
+    <canvas id="ambush8Chart"></canvas>
+    <button class="chart-export-btn" data-chart="ambush8Chart"> </button>
+  </div>
+</div>
+
+<table id="summaryTable">
+  <thead>
+    <tr id="summaryHeader"></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<div class="popup" id="analysisPopup">
+  <div class="popup-content">
+    <div class="popup-header">
+      <h3>Data Analysis</h3>
+      <div class="button-group">
+        <button class="excel-btn" id="excelExportBtn">📥 Export to Excel</button>
+        <button class="screenshot-btn" id="popupScreenshotBtn">📸 Screenshot</button>
+        <button class="close-btn" id="closePopupBtn">Close</button>
       </div>
     </div>
+    <h4>Main Metrics</h4>
+    <table class="analysis-table" id="analysisTable">
+      <thead>
+        <tr id="analysisHeader"></tr>
+      </thead>
+      <tbody id="analysisBody"></tbody>
+    </table>
+    <div class="insights" id="insights"></div>
+    <h4>Ambush Performance Details</h4>
+    <table class="ambush-table" id="ambushTable">
+      <thead>
+        <tr id="ambushHeader"></tr>
+      </thead>
+      <tbody id="ambushBody"></tbody>
+    </table>
   </div>
+</div>
+
+<!-- Add deficiency details popup -->
+<div class="popup" id="deficiencyPopup">
+  <div class="popup-content">
+    <div class="popup-header">
+      <h3>Deficiency Details</h3>
+      <button class="close-btn" id="closeDefPopupBtn">Close</button>
+    </div>
+    <div id="deficiencyDetails"></div>
+  </div>
+</div>
 
 <script>
-const { jsPDF } = window.jspdf;
 const SHEET_ID = '12mtmU8RBHFLUpFXYCdGH96mMBL_Ec6cpvh0dR_CotZg';
 const API_KEY = 'AIzaSyBkKVtdfFbFfdFE8FqSaUGZvptxj0Fysco';
-const RANGE = 'CrewData!A1:AJ1000';
-let allData = [], headers = [], summaryData = [], divisionSummaryData = {}, remarksData = [];
-let selectedDivision = '', buttonDivision = '', buttonCategory = '';
-let fromDate = '', toDate = '', showDivisionSummary = false;
-let currentPage = 1, rowsPerPage = 100;
-let pdfSettings = { fontSize: 8, columnWidthMultiplier: 1.0, margin: 8 };
+const RANGE = 'CrewData!A1:AG1000';
+let allData = [], headers = [], charts = [], grouped = {}, deficiencyMap = {};
+let selectedDivision = 'ALL', chartType = 'bar';
+let fromDate = '', toDate = '';
+let showOnlyDeficiency = false;
 
-// Fetch data with error handling
-async function fetchData() {
-  try {
-    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`);
-    if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-    const data = await res.json();
-    allData = data.values || [];
-    if (allData.length === 0) throw new Error('No data received from Google Sheets');
-    headers = allData[0] || [];
+fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`)
+  .then(res => {
+    if (!res.ok) throw new Error('Failed to fetch data from Google Sheets');
+    return res.json();
+  })
+  .then(data => {
+    allData = data.values;
+    headers = allData[0];
     initUI();
-    renderTables();
-  } catch (err) {
-    console.error('Fetch Error:', err);
+    renderDivisionButtons();
+    renderAllCharts();
+  })
+  .catch(err => {
+    console.error(err);
     alert('Error fetching data. Please check your internet connection or try again later.');
-  }
-}
-fetchData();
-
-function addOneDay(dateStr) {
-  if (!dateStr) return '';
-  let date = new Date(dateStr);
-  date.setDate(date.getDate() + 1);
-  return date.toISOString().split('T')[0];
-}
+  });
 
 function initUI() {
   const today = new Date();
   const defaultFrom = new Date();
   defaultFrom.setDate(today.getDate() - 6);
-  fromDate = addOneDay(defaultFrom.toISOString().split('T')[0]);
-  toDate = addOneDay(today.toISOString().split('T')[0]);
+  fromDate = defaultFrom.toISOString().split('T')[0];
+  toDate = today.toISOString().split('T')[0];
 
   flatpickr('#datePicker', {
     mode: 'range',
@@ -449,936 +547,936 @@ function initUI() {
     static: true,
     onChange: (selectedDates) => {
       if (selectedDates.length === 2) {
-        const inputFrom = selectedDates[0].toISOString().split('T')[0];
-        const inputTo = selectedDates[1].toISOString().split('T')[0];
-        fromDate = addOneDay(inputFrom);
-        toDate = addOneDay(inputTo);
+        fromDate = selectedDates[0].toISOString().split('T')[0];
+        toDate = selectedDates[1].toISOString().split('T')[0];
         if (fromDate > toDate) {
           alert('Start date cannot be later than end date.');
           fromDate = toDate;
-          document.getElementById('datePicker')._flatpickr.setDate([inputTo, inputTo]);
+          document.getElementById('datePicker')._flatpickr.setDate([toDate, toDate]);
         }
-        currentPage = 1;
-        renderTables();
+        renderDivisionButtons();
+        renderAllCharts();
       }
     }
   });
 
-  document.getElementById('divisionInput').addEventListener('input', function() {
-    selectedDivision = this.value.trim();
-    currentPage = 1;
-    renderTables();
+  document.getElementById('metricFilter').addEventListener('change', function() {
+    const value = this.value;
+    document.querySelectorAll('.chart-container').forEach(container => {
+      container.style.display = (value === 'all' || container.id.toLowerCase().includes(value)) ? 'flex' : 'none';
+    });
   });
 
   document.getElementById('resetBtn').addEventListener('click', () => {
-    selectedDivision = '';
-    buttonDivision = '';
-    buttonCategory = '';
-    showDivisionSummary = false;
-    currentPage = 1;
-    document.getElementById('divisionInput').value = '';
-    document.getElementById('toggleDivisionSummaryBtn').textContent = '📊 Show Division Summary';
-    document.getElementById('divisionSummaryHeader').classList.add('hidden');
-    document.getElementById('divisionSummaryContainer').classList.add('hidden');
+    selectedDivision = 'ALL';
+    document.getElementById('metricFilter').value = 'all';
     const today = new Date();
     const defaultFrom = new Date();
     defaultFrom.setDate(today.getDate() - 6);
-    fromDate = addOneDay(defaultFrom.toISOString().split('T')[0]);
-    toDate = addOneDay(today.toISOString().split('T')[0]);
+    fromDate = defaultFrom.toISOString().split('T')[0];
+    toDate = today.toISOString().split('T')[0];
     document.getElementById('datePicker')._flatpickr.setDate([fromDate, toDate]);
-    renderTables();
+    document.querySelectorAll('.chart-container').forEach(container => {
+      container.style.display = 'flex';
+    });
+    renderDivisionButtons();
+    renderAllCharts();
   });
 
-  document.getElementById('toggleDivisionSummaryBtn').addEventListener('click', () => {
-    showDivisionSummary = !showDivisionSummary;
-    document.getElementById('toggleDivisionSummaryBtn').textContent = showDivisionSummary ? '📊 Hide Division Summary' : '📊 Show Division Summary';
-    document.getElementById('divisionSummaryHeader').classList.toggle('hidden', !showDivisionSummary);
-    document.getElementById('divisionSummaryContainer').classList.toggle('hidden', !showDivisionSummary);
-    renderTables();
+  document.getElementById('screenshotBtn').addEventListener('click', () => {
+    const mainContent = document.body;
+    addScreenshotHeader(mainContent, 'Dashboard');
+    setTimeout(() => {
+      html2canvas(mainContent, { scale: 2, ignoreElements: el => el.classList && el.classList.contains('popup') && el.style.display !== 'none' }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `dashboard_screenshot_${new Date().toISOString().split('T')[0]}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        removeScreenshotHeader();
+      });
+    }, 100); // Wait for header to render
   });
 
-  document.getElementById('excelBtn').addEventListener('click', exportToExcel);
-  document.getElementById('pdfBtn').addEventListener('click', showPdfPreview);
+  document.getElementById('popupScreenshotBtn').addEventListener('click', () => {
+    const popupContent = document.querySelector('#analysisPopup .popup-content');
+    addScreenshotHeader(popupContent, 'Analysis');
+    setTimeout(() => {
+      html2canvas(popupContent, { scale: 2 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `analysis_screenshot_${new Date().toISOString().split('T')[0]}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        removeScreenshotHeader();
+      });
+    }, 100);
+  });
 
-  document.getElementById('prevPageBtn').addEventListener('click', () => {
-    if (currentPage > 1) {
-      currentPage--;
-      renderTables();
+  document.getElementById('deficiencyPopup').addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'defScreenshotBtn') {
+      const popupContent = document.querySelector('#deficiencyPopup .popup-content');
+      addScreenshotHeader(popupContent, 'Deficiency');
+      setTimeout(() => {
+        html2canvas(popupContent, { scale: 2 }).then(canvas => {
+          const link = document.createElement('a');
+          link.download = `deficiency_screenshot_${new Date().toISOString().split('T')[0]}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          removeScreenshotHeader();
+        });
+      }, 100);
     }
   });
 
-  document.getElementById('nextPageBtn').addEventListener('click', () => {
-    if (currentPage < Math.ceil(remarksData.length / rowsPerPage)) {
-      currentPage++;
-      renderTables();
+  document.getElementById('analyzeBtn').addEventListener('click', () => {
+    if (Object.keys(grouped).length === 0) {
+      alert('Data is still loading. Please try again in a moment.');
+      return;
     }
+    document.getElementById('analysisPopup').style.display = 'block';
+    renderAnalysisTable();
   });
 
-  document.getElementById('page1Btn').addEventListener('click', () => {
-    window.location.reload();
+  document.getElementById('closePopupBtn').addEventListener('click', () => {
+    document.getElementById('analysisPopup').style.display = 'none';
   });
-  ['page2Btn', 'page3Btn', 'page4Btn', 'page5Btn'].forEach(id => {
-    document.getElementById(id).addEventListener('click', () => {
-      alert('Coming Soon');
+
+  document.getElementById('closeDefPopupBtn').onclick = function() {
+    document.getElementById('deficiencyPopup').style.display = 'none';
+  }
+
+  document.getElementById('excelExportBtn').addEventListener('click', exportToExcel);
+
+  document.querySelectorAll('.chart-type-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      chartType = btn.dataset.type;
+      document.querySelectorAll('.chart-type-toggle').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderAllCharts();
+    });
+  });
+  document.getElementById('barToggle').classList.add('active');
+
+  document.querySelectorAll('.chart-export-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const chartId = btn.dataset.chart;
+      const canvas = document.getElementById(chartId);
+      const link = document.createElement('a');
+      link.download = `${chartId}_${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
     });
   });
 
-  document.getElementById('fontSizeSlider').addEventListener('input', function() {
-    pdfSettings.fontSize = parseFloat(this.value);
-    document.getElementById('fontSizeValue').textContent = this.value;
-    showPdfPreview();
-  });
-  document.getElementById('columnWidthSlider').addEventListener('input', function() {
-    pdfSettings.columnWidthMultiplier = parseFloat(this.value);
-    document.getElementById('columnWidthValue').textContent = this.value;
-    showPdfPreview();
-  });
-  document.getElementById('marginSlider').addEventListener('input', function() {
-    pdfSettings.margin = parseInt(this.value);
-    document.getElementById('marginValue').textContent = this.value;
-    showPdfPreview();
-  });
-  document.getElementById('confirmPdfBtn').addEventListener('click', exportToPDF);
-  document.getElementById('cancelPdfBtn').addEventListener('click', () => {
-    document.getElementById('pdfPreviewModal').style.display = 'none';
+  document.getElementById('deficiencyToggleBtn').addEventListener('click', function() {
+    showOnlyDeficiency = !showOnlyDeficiency;
+    this.textContent = showOnlyDeficiency ? 'Show All' : 'Deficiencies';
+    this.style.background = showOnlyDeficiency ? '#0074D9' : '#ff4d4d';
+    this.style.borderColor = showOnlyDeficiency ? '#0074D9' : '#ff4d4d';
+    renderAllCharts();
   });
 }
 
-function renderTables() {
-  const idx = name => headers.indexOf(name);
-  const categories = [
-    { sn: 1, name: 'No. of SPMs Analyzed', checkCol: 2, defCol: 3, class: 'cat-spm' },
-    { sn: 2, name: 'No. of CVVRS Analyzed', checkCol: 4, defCol: 5, class: 'cat-cvvrs' },
-    { sn: 3, name: 'CUG Checked', checkCol: 6, defCol: 7, class: 'cat-cug' },
-    { sn: 4, name: 'Personal Mob. Checked', checkCol: 8, defCol: 9, class: 'cat-personal-mob' },
-    { sn: 5, name: 'Mob. Declaration', checkCol: 10, defCol: 11, class: 'cat-mob-declaration' },
-    { sn: 6, name: 'Lobby + Online', checkCol: [12, 13], defCol: 14, class: 'cat-lobby-online' },
-    { sn: 7, name: 'Ambush - Passing Yellow Yellow Signal DFC', checkCol: 15, defCol: 16, class: 'cat-yellow-dfc' },
-    { sn: 8, name: 'Ambush - Passing Yellow Signal IR', checkCol: 17, defCol: 18, class: 'cat-yellow-ir' },
-    { sn: 9, name: 'ALP RS Valve (Yellow Signal IR)', checkCol: 19, defCol: 20, class: 'cat-alp-rs' },
-    { sn: 10, name: 'MEMU/EMU Speed at PF Entry', checkCol: 21, defCol: 22, class: 'cat-memu-speed' },
-    { sn: 11, name: 'IBH Signal Passed as per Rule', checkCol: 23, defCol: 24, class: 'cat-ibs-signal' },
-    { sn: 12, name: 'Running Room (Wee Hours)', checkCol: 25, defCol: 26, class: 'cat-running-room' },
-    { sn: 13, name: 'Stabling/Securing of Loads', checkCol: 27, defCol: 28, class: 'cat-stabling' },
-    { sn: 14, name: 'Shunting operations', checkCol: 29, defCol: 30, class: 'cat-shunting' }
-  ];
-  const deficiencyColumns = [3, 5, 7, 9, 11, 14, 16, 18, 20, 22, 24, 26, 28, 30];
-  const divisionSummaryColumns = {
-    division: 1,
-    spm: 2,
-    defSpm: 3,
-    cvvrs: 4,
-    defCvvrs: 5,
-    cugChecked: 6,
-    cugMisused: 7,
-    personalMobChecked: 8,
-    personalMobMisused: 9,
-    mobDeclaration: 10,
-    mismatch: 11,
-    lobbyOnline: [12, 13],
-    mobDef: 14,
-    yellowYellowDfc: 15,
-    defYellowYellowDfc: 16,
-    yellowIr: 17,
-    defYellowIr: 18,
-    alpRsValve: 19,
-    defAlpRsValve: 20,
-    memuSpeed: 21,
-    overspeeding: 22,
-    ibsSignal: 23,
-    defIbsSignal: 24,
-    runningRoom: 25,
-    defRunningRoom: 26,
-    stablingChecked: 27,
-    defStabling: 28,
-    shuntingChecked: 29,
-    defShunting: 30
-  };
-
-  const divisionData = {};
-  allData.slice(2).forEach(r => {
-    const date = r[idx('Date')], division = r[1];
-    if (!division || !date) return;
-    if (date < fromDate || date > toDate) return;
-    if (selectedDivision && division !== selectedDivision) return;
-
-    if (!divisionData[division]) {
-      divisionData[division] = categories.reduce((acc, cat) => {
-        acc[cat.sn] = { checks: 0, deficiencies: 0 };
-        return acc;
-      }, {});
-    }
-
-    categories.forEach(cat => {
-      if (Array.isArray(cat.checkCol)) {
-        cat.checkCol.forEach(col => {
-          divisionData[division][cat.sn].checks += Number(r[col] || 0);
-        });
-      } else {
-        divisionData[division][cat.sn].checks += Number(r[cat.checkCol] || 0);
-      }
-      divisionData[division][cat.sn].deficiencies += Number(r[cat.defCol] || 0);
-    });
-  });
-
-  summaryData = categories.map(cat => {
-    const checks = Object.values(divisionData).reduce((sum, div) => sum + div[cat.sn].checks, 0);
-    const deficiencies = Object.values(divisionData).reduce((sum, div) => sum + div[cat.sn].deficiencies, 0);
-    const divisionsWithDef = Object.keys(divisionData)
-      .filter(div => divisionData[div][cat.sn].deficiencies > 0)
-      .join(', ');
-    return {
-      sn: cat.sn,
-      category: cat.name,
-      checks,
-      deficiencies,
-      divisionsWithDef: divisionsWithDef || 'None'
-    };
-  });
-
-  divisionSummaryData = {};
-  allData.slice(2).forEach(r => {
-    const date = r[idx('Date')], division = r[1];
-    if (!division || !date) return;
-    if (date < fromDate || date > toDate) return;
-    if (selectedDivision && division !== selectedDivision) return;
-
-    if (!divisionSummaryData[division]) {
-      divisionSummaryData[division] = {
-        spm: 0, defSpm: 0, cvvrs: 0, defCvvrs: 0, cugChecked: 0, cugMisused: 0,
-        personalMobChecked: 0, personalMobMisused: 0, mobDeclaration: 0, mismatch: 0,
-        lobbyOnline: 0, mobDef: 0, yellowYellowDfc: 0, defYellowYellowDfc: 0,
-        yellowIr: 0, defYellowIr: 0, alpRsValve: 0, defAlpRsValve: 0,
-        memuSpeed: 0, overspeeding: 0, ibsSignal: 0, defIbsSignal: 0,
-        runningRoom: 0, defRunningRoom: 0, stablingChecked: 0, defStabling: 0,
-        shuntingChecked: 0, defShunting: 0
-      };
-    }
-    divisionSummaryData[division].spm += Number(r[divisionSummaryColumns.spm] || 0);
-    divisionSummaryData[division].defSpm += Number(r[divisionSummaryColumns.defSpm] || 0);
-    divisionSummaryData[division].cvvrs += Number(r[divisionSummaryColumns.cvvrs] || 0);
-    divisionSummaryData[division].defCvvrs += Number(r[divisionSummaryColumns.defCvvrs] || 0);
-    divisionSummaryData[division].cugChecked += Number(r[divisionSummaryColumns.cugChecked] || 0);
-    divisionSummaryData[division].cugMisused += Number(r[divisionSummaryColumns.cugMisused] || 0);
-    divisionSummaryData[division].personalMobChecked += Number(r[divisionSummaryColumns.personalMobChecked] || 0);
-    divisionSummaryData[division].personalMobMisused += Number(r[divisionSummaryColumns.personalMobMisused] || 0);
-    divisionSummaryData[division].mobDeclaration += Number(r[divisionSummaryColumns.mobDeclaration] || 0);
-    divisionSummaryData[division].mismatch += Number(r[divisionSummaryColumns.mismatch] || 0);
-    divisionSummaryData[division].lobbyOnline += Number(r[divisionSummaryColumns.lobbyOnline[0]] || 0) + Number(r[divisionSummaryColumns.lobbyOnline[1]] || 0);
-    divisionSummaryData[division].mobDef += Number(r[divisionSummaryColumns.mobDef] || 0);
-    divisionSummaryData[division].yellowYellowDfc += Number(r[divisionSummaryColumns.yellowYellowDfc] || 0);
-    divisionSummaryData[division].defYellowYellowDfc += Number(r[divisionSummaryColumns.defYellowYellowDfc] || 0);
-    divisionSummaryData[division].yellowIr += Number(r[divisionSummaryColumns.yellowIr] || 0);
-    divisionSummaryData[division].defYellowIr += Number(r[divisionSummaryColumns.defYellowIr] || 0);
-    divisionSummaryData[division].alpRsValve += Number(r[divisionSummaryColumns.alpRsValve] || 0);
-    divisionSummaryData[division].defAlpRsValve += Number(r[divisionSummaryColumns.defAlpRsValve] || 0);
-    divisionSummaryData[division].memuSpeed += Number(r[divisionSummaryColumns.memuSpeed] || 0);
-    divisionSummaryData[division].overspeeding += Number(r[divisionSummaryColumns.overspeeding] || 0);
-    divisionSummaryData[division].ibsSignal += Number(r[divisionSummaryColumns.ibsSignal] || 0);
-    divisionSummaryData[division].defIbsSignal += Number(r[divisionSummaryColumns.defIbsSignal] || 0);
-    divisionSummaryData[division].runningRoom += Number(r[divisionSummaryColumns.runningRoom] || 0);
-    divisionSummaryData[division].defRunningRoom += Number(r[divisionSummaryColumns.defRunningRoom] || 0);
-    divisionSummaryData[division].stablingChecked += Number(r[divisionSummaryColumns.stablingChecked] || 0);
-    divisionSummaryData[division].defStabling += Number(r[divisionSummaryColumns.defStabling] || 0);
-    divisionSummaryData[division].shuntingChecked += Number(r[divisionSummaryColumns.shuntingChecked] || 0);
-    divisionSummaryData[division].defShunting += Number(r[divisionSummaryColumns.defShunting] || 0);
-  });
-
-  const summaryHeader = document.getElementById('summaryHeader');
-  const summaryBody = document.getElementById('summaryBody');
-  const excelSummaryData = [];
-
-  summaryHeader.innerHTML = `
-    <th onclick="sortTable('sn')">SN</th>
-    <th onclick="sortTable('category')">Category</th>
-    <th onclick="sortTable('checks')">No of Checks Conducted</th>
-    <th onclick="sortTable('deficiencies')">Deficiencies Noticed</th>
-    <th onclick="sortTable('divisionsWithDef')">Divisions Deficiencies</th>
+function addScreenshotHeader(element, type) {
+  // Remove any previous screenshot header
+  removeScreenshotHeader();
+  const header = document.createElement('div');
+  header.className = 'screenshot-header';
+  header.innerHTML = `
+    Crew Performance ${type} - Date: ${new Date().toLocaleDateString()} | 
+    Division: ${selectedDivision} | 
+    Date Range: ${fromDate} to ${toDate}
   `;
+  element.prepend(header);
+}
 
-  summaryBody.innerHTML = '';
-  if (summaryData.length === 0) {
-    summaryBody.innerHTML = `<tr><td colspan="5">No data available for the selected filters.</td></tr>`;
+function removeScreenshotHeader() {
+  const header = document.querySelector('.screenshot-header');
+  if (header) header.remove();
+}
+
+// Screenshot for dashboard (only main content, not overlays)
+document.getElementById('screenshotBtn').addEventListener('click', () => {
+  const mainContent = document.body;
+  addScreenshotHeader(mainContent, 'Dashboard');
+  setTimeout(() => {
+    html2canvas(mainContent, { scale: 2, ignoreElements: el => el.classList && el.classList.contains('popup') && el.style.display !== 'none' }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `dashboard_screenshot_${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      removeScreenshotHeader();
+    });
+  }, 100); // Wait for header to render
+});
+
+// Screenshot for popup (analysis)
+document.getElementById('popupScreenshotBtn').addEventListener('click', () => {
+  const popupContent = document.querySelector('#analysisPopup .popup-content');
+  addScreenshotHeader(popupContent, 'Analysis');
+  setTimeout(() => {
+    html2canvas(popupContent, { scale: 2 }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `analysis_screenshot_${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      removeScreenshotHeader();
+    });
+  }, 100);
+});
+
+// Screenshot for deficiency popup
+document.getElementById('deficiencyPopup').addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'defScreenshotBtn') {
+    const popupContent = document.querySelector('#deficiencyPopup .popup-content');
+    addScreenshotHeader(popupContent, 'Deficiency');
+    setTimeout(() => {
+      html2canvas(popupContent, { scale: 2 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `deficiency_screenshot_${new Date().toISOString().split('T')[0]}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        removeScreenshotHeader();
+      });
+    }, 100);
+  }
+});
+
+function renderDivisionButtons() {
+  const idx = name => headers.indexOf(name);
+  const divisions = [...new Set(allData.slice(2)
+    .filter(r => r[idx('Date')] && r[idx('Date')] >= fromDate && r[idx('Date')] <= toDate)
+    .map(r => r[1])
+  )].filter(Boolean).sort();
+  const bar = document.getElementById('divisionBtnBar');
+  bar.innerHTML = '';
+  const allBtn = document.createElement('button');
+  allBtn.textContent = 'All';
+  allBtn.className = 'division-btn all' + (selectedDivision === 'ALL' ? ' active' : '');
+  allBtn.onclick = () => {
+    selectedDivision = 'ALL';
+    renderAllCharts();
+    renderDivisionButtons();
+  };
+  bar.appendChild(allBtn);
+  divisions.forEach(d => {
+    const btn = document.createElement('button');
+    btn.textContent = d;
+    btn.className = 'division-btn' + (selectedDivision === d ? ' active' : '');
+    btn.onclick = () => {
+      selectedDivision = d;
+      renderAllCharts();
+      renderDivisionButtons();
+    };
+    bar.appendChild(btn);
+  });
+}
+
+function renderAllCharts() {
+  const idx = name => headers.indexOf(name);
+  grouped = {};
+  deficiencyMap = {};
+
+  const ambushIndices = [
+    { nos: 15, def: 16, name: 'Yellow Signal DFC' },
+    { nos: 17, def: 18, name: 'Yellow Signal IR' },
+    { nos: 19, def: 20, name: 'ALP holding RS valve' },
+    { nos: 21, def: 22, name: 'MEMUs/EMUs Speed checked at PF' },
+    { nos: 23, def: 24, name: 'IBH Signal Passed as per Rule' },
+    { nos: 25, def: 26, name: 'Running room wee Hours' },
+    { nos: 27, def: 28, name: 'Stabling/Securing of Loads' },
+    { nos: 29, def: 30, name: 'Shunting operations Checked' }
+  ];
+
+  if (selectedDivision === 'ALL') {
+    allData.slice(2).forEach(r => {
+      const date = r[idx('Date')], division = r[1];
+      if (!division || !date || date < fromDate || date > toDate) return;
+      if (!grouped[division]) {
+        grouped[division] = {
+          spm: 0, defSpm: 0, cvvrs: 0, defCvvrs: 0, mobile: 0, defMobile: 0, ambush: 0, defAmbush: 0
+        };
+        ambushIndices.forEach((_, i) => {
+          grouped[division][`ambush${i+1}`] = 0;
+          grouped[division][`defAmbush${i+1}`] = 0;
+        });
+      }
+
+      grouped[division].spm += (+r[2] || 0);
+      grouped[division].defSpm += (+r[3] || 0);
+      grouped[division].cvvrs += (+r[4] || 0);
+      grouped[division].defCvvrs += (+r[5] || 0);
+      [6, 8, 10, 12, 13].forEach(i => grouped[division].mobile += (+r[i] || 0));
+      [7, 9, 11, 14].forEach(i => grouped[division].defMobile += (+r[i] || 0));
+      for (let i = 15; i <= 29; i += 2) {
+        grouped[division].ambush += (+r[i] || 0);
+        grouped[division].defAmbush += (+r[i+1] || 0);
+      }
+      ambushIndices.forEach((a, i) => {
+        grouped[division][`ambush${i+1}`] += (+r[a.nos] || 0);
+        grouped[division][`defAmbush${i+1}`] += (+r[a.def] || 0);
+      });
+
+      const key = `${division}`;
+      deficiencyMap[key] = deficiencyMap[key] || [];
+      deficiencyMap[key].push({
+        date, division,
+        remarks: r[idx("Deficiency / Remarks noticed during the day")] || '-',
+        name: r[idx("Name with Designation")] || '-',
+        spm: (+r[2] || 0),
+        cvvrs: (+r[4] || 0),
+        mobile: [6, 8, 10, 12, 13].reduce((sum, i) => sum + (+r[i] || 0), 0),
+        ambush: (() => { let a = 0; for (let i = 15; i <= 29; i += 2) a += (+r[i] || 0); return a; })()
+      });
+    });
+
+    const divisions = Object.keys(grouped).sort();
+    renderSummaryTable(divisions, grouped, 'division');
+    renderTrendSummary(divisions, grouped, 'division');
+    renderChart("spmChart", "SPM", divisions.map(d => grouped[d].spm), divisions.map(d => grouped[d].defSpm), divisions);
+    renderChart("cvvrsChart", "CVVRS", divisions.map(d => grouped[d].cvvrs), divisions.map(d => grouped[d].defCvvrs), divisions);
+    renderChart("mobileChart", "Mobile", divisions.map(d => grouped[d].mobile), divisions.map(d => grouped[d].defMobile), divisions);
+    renderChart("ambushChart", "Ambush", divisions.map(d => grouped[d].ambush), divisions.map(d => grouped[d].defAmbush), divisions);
+    ambushIndices.forEach((a, i) => {
+      renderChart(`ambush${i+1}Chart`, a.name, divisions.map(d => grouped[d][`ambush${i+1}`]), divisions.map(d => grouped[d][`defAmbush${i+1}`]), divisions);
+    });
+
   } else {
-    summaryData.forEach(row => {
-      const html = `
+    allData.slice(2).forEach(r => {
+      const date = r[idx('Date')], division = r[1];
+      if (!division || division !== selectedDivision || !date || date < fromDate || date > toDate) return;
+      if (!grouped[date]) {
+        grouped[date] = {
+          spm: 0, defSpm: 0, cvvrs: 0, defCvvrs: 0, mobile: 0, defMobile: 0, ambush: 0, defAmbush: 0
+        };
+        ambushIndices.forEach((_, i) => {
+          grouped[date][`ambush${i+1}`] = 0;
+          grouped[date][`defAmbush${i+1}`] = 0;
+        });
+      }
+
+      grouped[date].spm += (+r[2] || 0);
+      grouped[date].defSpm += (+r[3] || 0);
+      grouped[date].cvvrs += (+r[4] || 0);
+      grouped[date].defCvvrs += (+r[5] || 0);
+      [6, 8, 10, 12, 13].forEach(i => grouped[date].mobile += (+r[i] || 0));
+      [7, 9, 11, 14].forEach(i => grouped[date].defMobile += (+r[i] || 0));
+      for (let i = 15; i <= 29; i += 2) {
+        grouped[date].ambush += (+r[i] || 0);
+        grouped[date].defAmbush += (+r[i+1] || 0);
+      }
+      ambushIndices.forEach((a, i) => {
+        grouped[date][`ambush${i+1}`] += (+r[a.nos] || 0);
+        grouped[date][`defAmbush${i+1}`] += (+r[a.def] || 0);
+      });
+
+      const key = `${date}`;
+      deficiencyMap[key] = deficiencyMap[key] || [];
+      deficiencyMap[key].push({
+        date, division,
+        remarks: r[idx("Deficiency / Remarks noticed during the day")] || '-',
+        name: r[idx("Name with Designation")] || '-',
+        spm: (+r[2] || 0),
+        cvvrs: (+r[4] || 0),
+        mobile: [6, 8, 10, 12, 13].reduce((sum, i) => sum + (+r[i] || 0), 0),
+        ambush: (() => { let a = 0; for (let i = 15; i <= 29; i += 2) a += (+r[i] || 0); return a; })()
+      });
+    });
+
+    const dates = Object.keys(grouped).sort();
+    renderSummaryTable(dates, grouped, 'date');
+    renderTrendSummary(dates, grouped, 'date');
+    renderChart("spmChart", "SPM", dates.map(d => grouped[d].spm), dates.map(d => grouped[d].defSpm), dates);
+    renderChart("cvvrsChart", "CVVRS", dates.map(d => grouped[d].cvvrs), dates.map(d => grouped[d].defCvvrs), dates);
+    renderChart("mobileChart", "Mobile", dates.map(d => grouped[d].mobile), dates.map(d => grouped[d].defMobile), dates);
+    renderChart("ambushChart", "Ambush", dates.map(d => grouped[d].ambush), dates.map(d => grouped[d].defAmbush), dates);
+    ambushIndices.forEach((a, i) => {
+      renderChart(`ambush${i+1}Chart`, a.name, dates.map(d => grouped[d][`ambush${i+1}`]), dates.map(d => grouped[d][`defAmbush${i+1}`]), dates);
+    });
+  }
+}
+
+function renderSummaryTable(keys, grouped, mode) {
+  const tbody = document.querySelector("#summaryTable tbody");
+  const thead = document.getElementById("summaryHeader");
+  tbody.innerHTML = "";
+  if (mode === 'division') {
+    thead.innerHTML = `
+      <th></th>
+      <th onclick="sortTable('division', 1)">Division</th>
+      <th onclick="sortTable('spm', 2)">SPM</th>
+      <th onclick="sortTable('defSpm', 3)">SPM Def</th>
+      <th onclick="sortTable('cvvrs', 4)">CVVRS</th>
+      <th onclick="sortTable('defCvvrs', 5)">CVVRS Def</th>
+      <th onclick="sortTable('mobile', 6)">Mobile</th>
+      <th onclick="sortTable('defMobile', 7)">Mobile Def</th>
+      <th onclick="sortTable('ambush', 8)">Ambush</th>
+      <th onclick="sortTable('defAmbush', 9)">Ambush Def</th>
+    `;
+  } else {
+    thead.innerHTML = `
+      <th onclick="sortTable('date', 0)">Date</th>
+      <th onclick="sortTable('spm', 1)">SPM</th>
+      <th onclick="sortTable('defSpm', 2)">SPM Def</th>
+      <th onclick="sortTable('cvvrs', 3)">CVVRS</th>
+      <th onclick="sortTable('defCvvrs', 4)">CVVRS Def</th>
+      <th onclick="sortTable('mobile', 5)">Mobile</th>
+      <th onclick="sortTable('defMobile', 6)">Mobile Def</th>
+      <th onclick="sortTable('ambush', 7)">Ambush</th>
+      <th onclick="sortTable('defAmbush', 8)">Ambush Def</th>
+    `;
+  }
+  if (keys.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${mode === 'division' ? 10 : 9}">No data available for the selected filters.</td></tr>`;
+    return;
+  }
+  keys.forEach(key => {
+    const g = grouped[key];
+    let row = '';
+    if (mode === 'division') {
+      row = `
         <tr>
-          <td>${row.sn}</td>
-          <td>${row.category}</td>
-          <td>${row.checks}</td>
-          <td>${row.deficiencies}</td>
-          <td>${row.divisionsWithDef}</td>
+          <td>
+            <button class="division-btn${selectedDivision===key?' active':''}" onclick="selectDivisionRow('${key}')">🔎</button>
+          </td>
+          <td>${key}</td>
+          <td>${g.spm}</td>
+          <td>${g.defSpm}</td>
+          <td>${g.cvvrs}</td>
+          <td>${g.defCvvrs}</td>
+          <td>${g.mobile}</td>
+          <td>${g.defMobile}</td>
+          <td>${g.ambush}</td>
+          <td>${g.defAmbush}</td>
         </tr>
       `;
-      summaryBody.insertAdjacentHTML('beforeend', html);
-      excelSummaryData.push({
-        SN: row.sn,
-        Category: row.category,
-        'No of Checks Conducted': row.checks,
-        'Deficiencies Noticed': row.deficiencies,
-        'Divisions Deficiencies': row.divisionsWithDef
-      });
-    });
-  }
-
-  const divisionSummaryTableHeader = document.getElementById('divisionSummaryTableHeader');
-  const divisionSummaryTableBody = document.getElementById('divisionSummaryTableBody');
-  const excelDivisionSummaryData = [];
-
-  divisionSummaryTableHeader.innerHTML = `
-    <th onclick="sortDivisionTable('division')">Division</th>
-    <th onclick="sortDivisionTable('spm')">Total SPMs</th>
-    <th onclick="sortDivisionTable('defSpm')">SPM Def.</th>
-    <th onclick="sortDivisionTable('cvvrs')">Total CVVRS</th>
-    <th onclick="sortDivisionTable('defCvvrs')">CVVRS Def.</th>
-    <th onclick="sortDivisionTable('cugChecked')">CUG Checked</th>
-    <th onclick="sortDivisionTable('cugMisused')">CUG Misused</th>
-    <th onclick="sortDivisionTable('personalMobChecked')">Personal Mob. Checked</th>
-    <th onclick="sortDivisionTable('personalMobMisused')">Personal Mob. Misused</th>
-    <th onclick="sortDivisionTable('mobDeclaration')">Mob. Declaration</th>
-    <th onclick="sortDivisionTable('mismatch')">Mismatch</th>
-    <th onclick="sortDivisionTable('lobbyOnline')">Lobby + Online</th>
-    <th onclick="sortDivisionTable('mobDef')">Mob. Def.</th>
-    <th onclick="sortDivisionTable('yellowYellowDfc')">Ambush: Yellow-Yellow DFC</th>
-    <th onclick="sortDivisionTable('defYellowYellowDfc')">Def: Yellow-Yellow DFC</th>
-    <th onclick="sortDivisionTable('yellowIr')">Ambush: Yellow IR</th>
-    <th onclick="sortDivisionTable('defYellowIr')">Def: Yellow IR</th>
-    <th onclick="sortDivisionTable('alpRsValve')">ALP RS Valve Check</th>
-    <th onclick="sortDivisionTable('defAlpRsValve')">Def: ALP RS Valve</th>
-    <th onclick="sortDivisionTable('memuSpeed')">MEMU Speed at PF</th>
-    <th onclick="sortDivisionTable('overspeeding')">OverSpeeding Cases</th>
-    <th onclick="sortDivisionTable('ibsSignal')">IBS Signal Passed</th>
-    <th onclick="sortDivisionTable('defIbsSignal')">Def: IBS Signal</th>
-    <th onclick="sortDivisionTable('runningRoom')">Running Room (Wee Hours)</th>
-    <th onclick="sortDivisionTable('defRunningRoom')">Def: Running Room</th>
-    <th onclick="sortDivisionTable('stablingChecked')">Stabling Checked</th>
-    <th onclick="sortDivisionTable('defStabling')">Def: Stabling</th>
-    <th onclick="sortDivisionTable('shuntingChecked')">Shunting Checked</th>
-    <th onclick="sortDivisionTable('defShunting')">Def: Shunting</th>
-  `;
-
-  divisionSummaryTableBody.innerHTML = '';
-  if (showDivisionSummary) {
-    const divisions = Object.keys(divisionSummaryData).sort((a, b) => divisionSummaryData[b].spm - divisionSummaryData[a].spm);
-    if (divisions.length === 0) {
-      divisionSummaryTableBody.innerHTML = `<tr><td colspan="29">No data available for the selected filters.</td></tr>`;
     } else {
-      divisions.forEach(division => {
-        const g = divisionSummaryData[division];
-        const row = `
-          <tr>
-            <td>${division}</td>
-            <td>${g.spm}</td>
-            <td>${g.defSpm}</td>
-            <td>${g.cvvrs}</td>
-            <td>${g.defCvvrs}</td>
-            <td>${g.cugChecked}</td>
-            <td>${g.cugMisused}</td>
-            <td>${g.personalMobChecked}</td>
-            <td>${g.personalMobMisused}</td>
-            <td>${g.mobDeclaration}</td>
-            <td>${g.mismatch}</td>
-            <td>${g.lobbyOnline}</td>
-            <td>${g.mobDef}</td>
-            <td>${g.yellowYellowDfc}</td>
-            <td>${g.defYellowYellowDfc}</td>
-            <td>${g.yellowIr}</td>
-            <td>${g.defYellowIr}</td>
-            <td>${g.alpRsValve}</td>
-            <td>${g.defAlpRsValve}</td>
-            <td>${g.memuSpeed}</td>
-            <td>${g.overspeeding}</td>
-            <td>${g.ibsSignal}</td>
-            <td>${g.defIbsSignal}</td>
-            <td>${g.runningRoom}</td>
-            <td>${g.defRunningRoom}</td>
-            <td>${g.stablingChecked}</td>
-            <td>${g.defStabling}</td>
-            <td>${g.shuntingChecked}</td>
-            <td>${g.defShunting}</td>
-          </tr>
-        `;
-        divisionSummaryTableBody.insertAdjacentHTML('beforeend', row);
-        excelDivisionSummaryData.push({
-          Division: division,
-          'Total SPMs': g.spm,
-          'SPM Def.': g.defSpm,
-          'Total CVVRS': g.cvvrs,
-          'CVVRS Def.': g.defCvvrs,
-          'CUG Checked': g.cugChecked,
-          'CUG Misused': g.cugMisused,
-          'Personal Mob. Checked': g.personalMobChecked,
-          'Personal Mob. Misused': g.personalMobMisused,
-          'Mob. Declaration': g.mobDeclaration,
-          Mismatch: g.mismatch,
-          'Lobby + Online': g.lobbyOnline,
-          'Mob. Def.': g.mobDef,
-          'Ambush: Yellow-Yellow DFC': g.yellowYellowDfc,
-          'Def: Yellow-Yellow DFC': g.defYellowYellowDfc,
-          'Ambush: Yellow IR': g.yellowIr,
-          'Def: Yellow IR': g.defYellowIr,
-          'ALP RS Valve Check': g.alpRsValve,
-          'Def: ALP RS Valve': g.defAlpRsValve,
-          'MEMU Speed at PF': g.memuSpeed,
-          'OverSpeeding Cases': g.overspeeding,
-          'IBS Signal Passed': g.ibsSignal,
-          'Def: IBS Signal': g.defIbsSignal,
-          'Running Room (Wee Hours)': g.runningRoom,
-          'Def: Running Room': g.defRunningRoom,
-          'Stabling Checked': g.stablingChecked,
-          'Def: Stabling': g.defStabling,
-          'Shunting Checked': g.shuntingChecked,
-          'Def: Shunting': g.defShunting
-        });
-      });
+      row = `
+        <tr>
+          <td>${key}</td>
+          <td>${g.spm}</td>
+          <td>${g.defSpm}</td>
+          <td>${g.cvvrs}</td>
+          <td>${g.defCvvrs}</td>
+          <td>${g.mobile}</td>
+          <td>${g.defMobile}</td>
+          <td>${g.ambush}</td>
+          <td>${g.defAmbush}</td>
+        </tr>
+      `;
     }
+    tbody.insertAdjacentHTML("beforeend", row);
+  });
+  // Add totals row
+  if (keys.length > 0) {
+    let total = {spm:0,defSpm:0,cvvrs:0,defCvvrs:0,mobile:0,defMobile:0,ambush:0,defAmbush:0};
+    keys.forEach(key=>{
+      const g=grouped[key];
+      total.spm+=g.spm; total.defSpm+=g.defSpm;
+      total.cvvrs+=g.cvvrs; total.defCvvrs+=g.defCvvrs;
+      total.mobile+=g.mobile; total.defMobile+=g.defMobile;
+      total.ambush+=g.ambush; total.defAmbush+=g.defAmbush;
+    });
+    let row = '';
+    if (mode === 'division') {
+      row = `
+        <tr style="font-weight:bold;background:#e6f0fa;">
+          <td></td>
+          <td>Total</td>
+          <td>${total.spm}</td>
+          <td>${total.defSpm}</td>
+          <td>${total.cvvrs}</td>
+          <td>${total.defCvvrs}</td>
+          <td>${total.mobile}</td>
+          <td>${total.defMobile}</td>
+          <td>${total.ambush}</td>
+          <td>${total.defAmbush}</td>
+        </tr>
+      `;
+    } else {
+      row = `
+        <tr style="font-weight:bold;background:#e6f0fa;">
+          <td>Total</td>
+          <td>${total.spm}</td>
+          <td>${total.defSpm}</td>
+          <td>${total.cvvrs}</td>
+          <td>${total.defCvvrs}</td>
+          <td>${total.mobile}</td>
+          <td>${total.defMobile}</td>
+          <td>${total.ambush}</td>
+          <td>${total.defAmbush}</td>
+        </tr>
+      `;
+    }
+    tbody.insertAdjacentHTML("beforeend", row);
+  }
+}
+
+function sortTable(column, index) {
+  const mode = selectedDivision === 'ALL' ? 'division' : 'date';
+  const keys = Object.keys(grouped);
+  keys.sort((a, b) => {
+    if (column === 'division' || column === 'date') {
+      return a.localeCompare(b);
+    }
+    return grouped[b][column] - grouped[a][column];
+  });
+  renderSummaryTable(keys, grouped, mode);
+  renderAnalysisTable();
+}
+
+function renderTrendSummary(keys, grouped, mode) {
+  const trends = [];
+  if (mode === 'date' && keys.length > 1) {
+    const spmDiff = grouped[keys[keys.length - 1]].spm - grouped[keys[0]].spm;
+    const defSpmDiff = grouped[keys[keys.length - 1]].defSpm - grouped[keys[0]].defSpm;
+    trends.push(`<p><strong>SPM Trend</strong>: SPM checks ${spmDiff > 0 ? 'increased' : 'decreased'} by ${Math.abs(spmDiff)} from ${keys[0]} to ${keys[keys.length - 1]}.</p>`);
+    trends.push(`<p><strong>SPM Deficiency Trend</strong>: SPM deficiencies ${defSpmDiff > 0 ? 'increased' : 'decreased'} by ${Math.abs(defSpmDiff)}.</p>`);
+    const cvvrsDiff = grouped[keys[keys.length - 1]].cvvrs - grouped[keys[0]].cvvrs;
+    trends.push(`<p><strong>CVVRS Trend</strong>: CVVRS checks ${cvvrsDiff > 0 ? 'increased' : 'decreased'} by ${Math.abs(cvvrsDiff)}.</p>`);
+    const mobileDiff = grouped[keys[keys.length - 1]].mobile - grouped[keys[0]].mobile;
+    trends.push(`<p><strong>Mobile Trend</strong>: Mobile checks ${mobileDiff > 0 ? 'increased' : 'decreased'} by ${Math.abs(mobileDiff)}.</p>`);
+    const ambushDiff = grouped[keys[keys.length - 1]].ambush - grouped[keys[0]].ambush;
+    trends.push(`<p><strong>Ambush Trend</strong>: Ambush checks ${ambushDiff > 0 ? 'increased' : 'decreased'} by ${Math.abs(ambushDiff)}.</p>`);
+  }
+  document.getElementById('trendSummary').innerHTML = `
+    <h4>Data Trends</h4>
+    ${trends.length ? trends.join('') : '<p>No trend data available (select a specific division or longer date range).</p>'}
+  `;
+}
+
+function renderAnalysisTable() {
+  const thead = document.getElementById('analysisHeader');
+  const tbody = document.getElementById('analysisBody');
+  const ambushThead = document.getElementById('ambushHeader');
+  const ambushTbody = document.getElementById('ambushBody');
+  const insightsDiv = document.getElementById('insights');
+  const mode = selectedDivision === 'ALL' ? 'division' : 'date';
+  const keys = Object.keys(grouped).sort();
+
+  if (keys.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="13">No data available for the selected filters.</td></tr>';
+    ambushTbody.innerHTML = '<tr><td colspan="25">No data available for the selected filters.</td></tr>';
+    insightsDiv.innerHTML = '';
+    return;
   }
 
-  const divisionCounts = {};
-  const categoryCounts = {};
-  categories.forEach(cat => categoryCounts[cat.name] = 0);
-  const allRemarksData = [];
-  const groupedRemarks = {};
-
-  allData.slice(2).forEach(r => {
-    const date = r[idx('Date')], division = r[1], remarks = r[31] || '', e_date = r[33] || '', action_taken = r[34] || '', status = r[35] || '';
-    if (!division || !date) return;
-    if (date < fromDate || date > toDate) return;
-    if (selectedDivision && division !== selectedDivision) return;
-
-    const hasDeficiency = deficiencyColumns.some(col => Number(r[col] || 0) > 0);
-    if (!hasDeficiency) return;
-
-    const key = `${date}_${division}`;
-    if (!groupedRemarks[key]) {
-      groupedRemarks[key] = { date, division, categories: [], remarks, e_date, action_taken, status };
-    }
-
-    summaryData.forEach(row => {
-      const cat = categories.find(c => c.sn === row.sn);
-      if (row.divisionsWithDef.split(', ').includes(division)) {
-        const deficiency = Number(r[cat.defCol] || 0);
-        if (deficiency > 0) {
-          if (!groupedRemarks[key].categories.includes(cat.name)) {
-            groupedRemarks[key].categories.push(cat.name);
-            categoryCounts[cat.name] = (categoryCounts[cat.name] || 0) + 1;
-            divisionCounts[division] = (divisionCounts[division] || 0) + 1;
-          }
-        }
-      }
-    });
-
-    if (groupedRemarks[key].categories.length > 0) {
-      allRemarksData.push({
-        date,
-        division,
-        categories: groupedRemarks[key].categories,
-        remarks,
-        e_date,
-        action_taken,
-        status,
-        class: groupedRemarks[key].categories.map(cat => categories.find(c => c.name === cat)?.class).join(' ')
-      });
-    }
-  });
-
-  const divisionButtons = document.getElementById('divisionButtons');
-  const uniqueDivisions = [...new Set(summaryData.flatMap(row => row.divisionsWithDef.split(', ').filter(div => div !== 'None')))];
-  divisionButtons.innerHTML = '';
-  const allDivisionButton = document.createElement('button');
-  allDivisionButton.className = `filter-btn ${buttonDivision === 'ALL' ? 'active' : ''}`;
-  allDivisionButton.textContent = `ALL (${allRemarksData.length})`;
-  allDivisionButton.addEventListener('click', () => {
-    buttonDivision = 'ALL';
-    currentPage = 1;
-    renderTables();
-  });
-  divisionButtons.appendChild(allDivisionButton);
-  uniqueDivisions.forEach(div => {
-    const button = document.createElement('button');
-    button.className = `filter-btn ${div === buttonDivision ? 'active' : ''}`;
-    button.textContent = `${div} (${divisionCounts[div] || 0})`;
-    button.addEventListener('click', () => {
-      buttonDivision = div;
-      currentPage = 1;
-      renderTables();
-    });
-    divisionButtons.appendChild(button);
-  });
-
-  const categoryButtons = document.getElementById('categoryButtons');
-  categoryButtons.innerHTML = '';
-  const allCategoryButton = document.createElement('button');
-  allCategoryButton.className = `filter-btn ${buttonCategory === 'ALL' ? 'active' : ''}`;
-  allCategoryButton.textContent = `ALL (${allRemarksData.length})`;
-  allCategoryButton.addEventListener('click', () => {
-    buttonCategory = 'ALL';
-    currentPage = 1;
-    renderTables();
-  });
-  categoryButtons.appendChild(allCategoryButton);
-  categories.forEach(cat => {
-    const button = document.createElement('button');
-    button.className = `filter-btn ${cat.name === buttonCategory ? 'active' : ''} ${cat.class}`;
-    button.textContent = `${cat.name} (${categoryCounts[cat.name] || 0})`;
-    button.addEventListener('click', () => {
-      buttonCategory = cat.name;
-      currentPage = 1;
-      renderTables();
-    });
-    categoryButtons.appendChild(button);
-  });
-
-  const remarksHeader = document.getElementById('remarksHeader');
-  const remarksBody = document.getElementById('remarksBody');
-  const excelRemarksData = [];
-
-  remarksHeader.innerHTML = `
-    <th>Date</th>
-    <th>Division</th>
-    <th>Category</th>
-    <th>Remarks</th>
-    <th>E_Date</th>
-    <th>Action Taken Remarks</th>
-    <th>Status</th>
+  // Main Analysis Table
+  thead.innerHTML = `
+    <th onclick="sortAnalysisTable('key', 0)">${mode === 'division' ? 'Division' : 'Date'}</th>
+    <th onclick="sortAnalysisTable('spm', 1)">SPM</th>
+    <th onclick="sortAnalysisTable('defSpm', 2)">SPM Def</th>
+    <th onclick="sortAnalysisTable('spmDefRate', 3)">SPM Def Rate</th>
+    <th onclick="sortAnalysisTable('cvvrs', 4)">CVVRS</th>
+    <th onclick="sortAnalysisTable('defCvvrs', 5)">CVVRS Def</th>
+    <th onclick="sortAnalysisTable('cvvrsDefRate', 6)">CVVRS Def Rate</th>
+    <th onclick="sortAnalysisTable('mobile', 7)">Mobile</th>
+    <th onclick="sortAnalysisTable('defMobile', 8)">Mobile Def</th>
+    <th onclick="sortAnalysisTable('mobileDefRate', 9)">Mobile Def Rate</th>
+    <th onclick="sortAnalysisTable('ambush', 10)">Ambush</th>
+    <th onclick="sortAnalysisTable('defAmbush', 11)">Ambush Def</th>
+    <th onclick="sortAnalysisTable('ambushDefRate', 12)">Ambush Def Rate</th>
   `;
 
-  remarksData = [];
-  if (buttonDivision) {
-    const selectedCategories = buttonCategory === 'ALL' ? categories.map(c => c.name) : [buttonCategory];
-    const divisionsToShow = buttonDivision === 'ALL' ? uniqueDivisions : [buttonDivision];
-
-    divisionsToShow.forEach(division => {
-      const filteredData = allRemarksData.filter(row => row.division === division && (buttonCategory === 'ALL' || row.categories.includes(buttonCategory)));
-      if (filteredData.length > 0) {
-        if (buttonDivision === 'ALL') {
-          remarksData.push({ isHeader: true, division });
-        }
-        remarksData.push(...filteredData);
-      }
+  tbody.innerHTML = '';
+  const excelMainData = [];
+  const sortedKeys = [...keys];
+  let total = {spm:0,defSpm:0,cvvrs:0,defCvvrs:0,mobile:0,defMobile:0,ambush:0,defAmbush:0};
+  sortedKeys.forEach(key => {
+    const g = grouped[key];
+    total.spm+=g.spm; total.defSpm+=g.defSpm;
+    total.cvvrs+=g.cvvrs; total.defCvvrs+=g.defCvvrs;
+    total.mobile+=g.mobile; total.defMobile+=g.defMobile;
+    total.ambush+=g.ambush; total.defAmbush+=g.defAmbush;
+    const spmDefRate = g.spm ? ((g.defSpm / g.spm) * 100).toFixed(2) : 0;
+    const cvvrsDefRate = g.cvvrs ? ((g.defCvvrs / g.cvvrs) * 100).toFixed(2) : 0;
+    const mobileDefRate = g.mobile ? ((g.defMobile / g.mobile) * 100).toFixed(2) : 0;
+    const ambushDefRate = g.ambush ? ((g.defAmbush / g.ambush) * 100).toFixed(2) : 0;
+    const row = `
+      <tr>
+        <td>${key}</td>
+        <td>${g.spm}</td>
+        <td>${g.defSpm}</td>
+        <td class="${spmDefRate > 10 ? 'highlight-deficiency' : ''}">${spmDefRate}%</td>
+        <td>${g.cvvrs}</td>
+        <td>${g.defCvvrs}</td>
+        <td class="${cvvrsDefRate > 10 ? 'highlight-deficiency' : ''}">${cvvrsDefRate}%</td>
+        <td>${g.mobile}</td>
+        <td>${g.defMobile}</td>
+        <td class="${mobileDefRate > 10 ? 'highlight-deficiency' : ''}">${mobileDefRate}%</td>
+        <td>${g.ambush}</td>
+        <td>${g.defAmbush}</td>
+        <td class="${ambushDefRate > 10 ? 'highlight-deficiency' : ''}">${ambushDefRate}%</td>
+      </tr>
+    `;
+    tbody.insertAdjacentHTML('beforeend', row);
+    excelMainData.push({
+      [mode === 'division' ? 'Division' : 'Date']: key,
+      'SPM': g.spm,
+      'SPM Def': g.defSpm,
+      'SPM Def Rate': spmDefRate,
+      'CVVRS': g.cvvrs,
+      'CVVRS Def': g.defCvvrs,
+      'CVVRS Def Rate': cvvrsDefRate,
+      'Mobile': g.mobile,
+      'Mobile Def': g.defMobile,
+      'Mobile Def Rate': mobileDefRate,
+      'Ambush': g.ambush,
+      'Ambush Def': g.defAmbush,
+      'Ambush Def Rate': ambushDefRate
     });
-  }
+  });
+  // Add totals row
+  const spmDefRate = total.spm ? ((total.defSpm / total.spm) * 100).toFixed(2) : 0;
+  const cvvrsDefRate = total.cvvrs ? ((total.defCvvrs / total.cvvrs) * 100).toFixed(2) : 0;
+  const mobileDefRate = total.mobile ? ((total.defMobile / total.mobile) * 100).toFixed(2) : 0;
+  const ambushDefRate = total.ambush ? ((total.defAmbush / total.ambush) * 100).toFixed(2) : 0;
+  tbody.insertAdjacentHTML('beforeend', `
+    <tr style="font-weight:bold;background:#e6f0fa;">
+      <td>Total</td>
+      <td>${total.spm}</td>
+      <td>${total.defSpm}</td>
+      <td class="${spmDefRate > 10 ? 'highlight-deficiency' : ''}">${spmDefRate}%</td>
+      <td>${total.cvvrs}</td>
+      <td>${total.defCvvrs}</td>
+      <td class="${cvvrsDefRate > 10 ? 'highlight-deficiency' : ''}">${cvvrsDefRate}%</td>
+      <td>${total.mobile}</td>
+      <td>${total.defMobile}</td>
+      <td class="${mobileDefRate > 10 ? 'highlight-deficiency' : ''}">${mobileDefRate}%</td>
+      <td>${total.ambush}</td>
+      <td>${total.defAmbush}</td>
+      <td class="${ambushDefRate > 10 ? 'highlight-deficiency' : ''}">${ambushDefRate}%</td>
+    </tr>
+  `);
 
-  remarksBody.innerHTML = '';
-  if (remarksData.length === 0) {
-    remarksBody.innerHTML = `<tr><td colspan="7">No remarks data available for the selected filters.</td></tr>`;
-  } else {
-    const start = (currentPage - 1) * rowsPerPage;
-    const end = start + rowsPerPage;
-    const paginatedData = remarksData.slice(start, end);
-    paginatedData.forEach(row => {
-      if (row.isHeader) {
-        const html = `<tr><td colspan="7" class="division-group-header">${row.division}</td></tr>`;
-        remarksBody.insertAdjacentHTML('beforeend', html);
-      } else {
-        const html = `
-          <tr>
-            <td>${row.date}</td>
-            <td>${row.division}</td>
-            <td class="${row.class}">${row.categories.join(', ')}</td>
-            <td class="${row.class}">${row.remarks}</td>
-            <td>${row.e_date}</td>
-            <td>${row.action_taken}</td>
-            <td>${row.status}</td>
-          </tr>
+  // Ambush Table
+  ambushThead.innerHTML = `
+    <th onclick="sortAmbushTable('key', 0)">${mode === 'division' ? 'Division' : 'Date'}</th>
+    <th onclick="sortAmbushTable('ambush1', 1)">Yellow Signal DFC</th>
+    <th onclick="sortAmbushTable('defAmbush1', 2)">Yellow Signal DFC Def</th>
+    <th onclick="sortAmbushTable('ambush1DefRate', 3)">Yellow Signal DFC Def Rate</th>
+    <th onclick="sortAmbushTable('ambush2', 4)">Yellow Signal IR</th>
+    <th onclick="sortAmbushTable('defAmbush2', 5)">Yellow Signal IR Def</th>
+    <th onclick="sortAmbushTable('ambush2DefRate', 6)">Yellow Signal IR Def Rate</th>
+    <th onclick="sortAmbushTable('ambush3', 7)">ALP holding RS valve</th>
+    <th onclick="sortAmbushTable('defAmbush3', 8)">ALP holding RS valve Def</th>
+    <th onclick="sortAmbushTable('ambush3DefRate', 9)">ALP holding RS valve Def Rate</th>
+    <th onclick="sortAmbushTable('ambush4', 10)">MEMUs/EMUs Speed</th>
+    <th onclick="sortAmbushTable('defAmbush4', 11)">MEMUs/EMUs Speed Def</th>
+    <th onclick="sortAmbushTable('ambush4DefRate', 12)">MEMUs/EMUs Speed Def Rate</th>
+    <th onclick="sortAmbushTable('ambush5', 13)">IBH Signal Passed</th>
+    <th onclick="sortAmbushTable('defAmbush5', 14)">IBH Signal Passed Def</th>
+    <th onclick="sortAmbushTable('ambush5DefRate', 15)">IBH Signal Passed Def Rate</th>
+    <th onclick="sortAmbushTable('ambush6', 16)">Running room wee Hours</th>
+    <th onclick="sortAmbushTable('defAmbush6', 17)">Running room wee Hours Def</th>
+    <th onclick="sortAmbushTable('ambush6DefRate', 18)">Running room wee Hours Def Rate</th>
+    <th onclick="sortAmbushTable('ambush7', 19)">Stabling/Securing of Loads</th>
+    <th onclick="sortAmbushTable('defAmbush7', 20)">Stabling/Securing of Loads Def</th>
+    <th onclick="sortAmbushTable('ambush7DefRate', 21)">Stabling/Securing of Loads Def Rate</th>
+    <th onclick="sortAmbushTable('ambush8', 22)">Shunting operations Checked</th>
+    <th onclick="sortAmbushTable('defAmbush8', 23)">Shunting operations Checked Def</th>
+    <th onclick="sortAmbushTable('ambush8DefRate', 24)">Shunting operations Checked Def Rate</th>
+  `;
+
+  ambushTbody.innerHTML = '';
+  const excelAmbushData = [];
+  let ambushTotal = {};
+  for(let i=1;i<=8;i++){
+    ambushTotal['ambush'+i]=0;
+    ambushTotal['defAmbush'+i]=0;
+  }
+  sortedKeys.forEach(key => {
+    const g = grouped[key];
+    const row = `
+      <tr>
+        <td>${key}</td>
+        ${Array.from({length: 8}, (_, i) => {
+          const ambushVal = g[`ambush${i+1}`] || 0;
+          const defAmbushVal = g[`defAmbush${i+1}`] || 0;
+          const defRate = ambushVal ? ((defAmbushVal / ambushVal) * 100).toFixed(2) : 0;
+          ambushTotal['ambush'+(i+1)] += ambushVal;
+          ambushTotal['defAmbush'+(i+1)] += defAmbushVal;
+          return `
+            <td>${ambushVal}</td>
+            <td>${defAmbushVal}</td>
+            <td class="${defRate > 10 ? 'highlight-deficiency' : ''}">${defRate}%</td>
+          `;
+        }).join('')}
+      </tr>
+    `;
+    ambushTbody.insertAdjacentHTML('beforeend', row);
+    excelAmbushData.push({
+      [mode === 'division' ? 'Division' : 'Date']: key,
+      'Yellow Signal DFC': g.ambush1 || 0,
+      'Yellow Signal DFC Def': g.defAmbush1 || 0,
+      'Yellow Signal DFC Def Rate': g.ambush1 ? ((g.defAmbush1 / g.ambush1) * 100).toFixed(2) : 0,
+      'Yellow Signal IR': g.ambush2 || 0,
+      'Yellow Signal IR Def': g.defAmbush2 || 0,
+      'Yellow Signal IR Def Rate': g.ambush2 ? ((g.defAmbush2 / g.ambush2) * 100).toFixed(2) : 0,
+      'ALP holding RS valve': g.ambush3 || 0,
+      'ALP holding RS valve Def': g.defAmbush3 || 0,
+      'ALP holding RS valve Def Rate': g.ambush3 ? ((g.defAmbush3 / g.ambush3) * 100).toFixed(2) : 0,
+      'MEMUs/EMUs Speed': g.ambush4 || 0,
+      'MEMUs/EMUs Speed Def': g.defAmbush4 || 0,
+      'MEMUs/EMUs Speed Def Rate': g.ambush4 ? ((g.defAmbush4 / g.ambush4) * 100).toFixed(2) : 0,
+      'IBH Signal Passed': g.ambush5 || 0,
+      'IBH Signal Passed Def': g.defAmbush5 || 0,
+      'IBH Signal Passed Def Rate': g.ambush5 ? ((g.defAmbush5 / g.ambush5) * 100).toFixed(2) : 0,
+      'Running room wee Hours': g.ambush6 || 0,
+      'Running room wee Hours Def': g.defAmbush6 || 0,
+      'Running room wee Hours Def Rate': g.ambush6 ? ((g.defAmbush6 / g.ambush6) * 100).toFixed(2) : 0,
+      'Stabling/Securing of Loads': g.ambush7 || 0,
+      'Stabling/Securing of Loads Def': g.defAmbush7 || 0,
+      'Stabling/Securing of Loads Def Rate': g.ambush7 ? ((g.defAmbush7 / g.ambush7) * 100).toFixed(2) : 0,
+      'Shunting operations Checked': g.ambush8 || 0,
+      'Shunting operations Checked Def': g.defAmbush8 || 0,
+      'Shunting operations Checked Def Rate': g.ambush8 ? ((g.defAmbush8 / g.ambush8) * 100).toFixed(2) : 0
+    });
+  });
+  // Add totals row for ambush table
+  ambushTbody.insertAdjacentHTML('beforeend', `
+    <tr style="font-weight:bold;background:#e6f0fa;">
+      <td>Total</td>
+      ${Array.from({length:8},(_,i)=>{
+        const ambushVal=ambushTotal['ambush'+(i+1)];
+        const defAmbushVal=ambushTotal['defAmbush'+(i+1)];
+        const defRate=ambushVal?((defAmbushVal/ambushVal)*100).toFixed(2):0;
+        return `
+          <td>${ambushVal}</td>
+          <td>${defAmbushVal}</td>
+          <td class="${defRate>10?'highlight-deficiency':''}">${defRate}%</td>
         `;
-        remarksBody.insertAdjacentHTML('beforeend', html);
-      }
-    });
+      }).join('')}
+    </tr>
+  `);
 
-    allRemarksData.forEach(row => {
-      if (buttonCategory === 'ALL' || row.categories.includes(buttonCategory)) {
-        if (buttonDivision === 'ALL' || row.division === buttonDivision) {
-          excelRemarksData.push({
-            Date: row.date,
-            Division: row.division,
-            Category: row.categories.join(', '),
-            Remarks: row.remarks,
-            E_Date: row.e_date,
-            'Action Taken Remarks': row.action_taken,
-            Status: row.status
-          });
-        }
-      }
-    });
-  }
+  // AI Insights
+  const insights = [];
+  const spmMax = Math.max(...keys.map(k => grouped[k].spm));
+  const spmMin = Math.min(...keys.map(k => grouped[k].spm));
+  const spmDefMax = Math.max(...keys.map(k => grouped[k].defSpm));
+  const cvvrsMax = Math.max(...keys.map(k => grouped[k].cvvrs));
+  const cvvrsMin = Math.min(...keys.map(k => grouped[k].cvvrs));
+  const cvvrsDefMax = Math.max(...keys.map(k => grouped[k].defCvvrs));
+  const mobileMax = Math.max(...keys.map(k => grouped[k].mobile));
+  const mobileMin = Math.min(...keys.map(k => grouped[k].mobile));
+  const mobileDefMax = Math.max(...keys.map(k => grouped[k].defMobile));
+  const ambushMax = Math.max(...keys.map(k => grouped[k].ambush));
+  const ambushMin = Math.min(...keys.map(k => grouped[k].ambush));
+  const ambushDefMax = Math.max(...keys.map(k => grouped[k].defAmbush));
 
-  const totalPages = Math.ceil(remarksData.length / rowsPerPage);
-  document.getElementById('pageInfo').textContent = remarksData.length > 0 ? `Page ${currentPage} of ${totalPages}` : '';
-  document.getElementById('prevPageBtn').classList.toggle('disabled', currentPage === 1);
-  document.getElementById('nextPageBtn').classList.toggle('disabled', currentPage === totalPages || totalPages === 0);
+  const spmTop = keys.find(k => grouped[k].spm === spmMax);
+  const spmBottom = keys.find(k => grouped[k].spm === spmMin);
+  const spmDefTop = keys.find(k => grouped[k].defSpm === spmDefMax);
+  const cvvrsTop = keys.find(k => grouped[k].cvvrs === cvvrsMax);
+  const cvvrsBottom = keys.find(k => grouped[k].cvvrs === cvvrsMin);
+  const cvvrsDefTop = keys.find(k => grouped[k].defCvvrs === cvvrsDefMax);
+  const mobileTop = keys.find(k => grouped[k].mobile === mobileMax);
+  const mobileBottom = keys.find(k => grouped[k].mobile === mobileMin);
+  const mobileDefTop = keys.find(k => grouped[k].defMobile === mobileDefMax);
+  const ambushTop = keys.find(k => grouped[k].ambush === ambushMax);
+  const ambushBottom = keys.find(k => grouped[k].ambush === ambushMin);
+  const ambushDefTop = keys.find(k => grouped[k].defAmbush === ambushDefMax);
 
-  document.getElementById('excelBtn').dataset.excelSummaryData = JSON.stringify(excelSummaryData);
-  document.getElementById('excelBtn').dataset.excelDivisionSummaryData = JSON.stringify(excelDivisionSummaryData);
-  document.getElementById('excelBtn').dataset.excelRemarksData = JSON.stringify(excelRemarksData);
+  insights.push(`<h4>AI-Driven Insights</h4>`);
+  if (spmTop) insights.push(`<p><strong>SPM Performance</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${spmTop} has the highest SPM checks (${spmMax}), while ${spmBottom} has the lowest (${spmMin}).</p>`);
+  if (spmDefTop) insights.push(`<p><strong>SPM Deficiencies</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${spmDefTop} has the highest SPM deficiencies (${spmDefMax}). Review processes to reduce errors.</p>`);
+  if (cvvrsTop) insights.push(`<p><strong>CVVRS Performance</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${cvvrsTop} leads in CVVRS checks (${cvvrsMax}), while ${cvvrsBottom} has the lowest (${cvvrsMin}).</p>`);
+  if (cvvrsDefTop) insights.push(`<p><strong>CVVRS Deficiencies</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${cvvrsDefTop} has the highest CVVRS deficiencies (${cvvrsDefMax}).</p>`);
+  if (mobileTop) insights.push(`<p><strong>Mobile Performance</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${mobileTop} has the highest Mobile checks (${mobileMax}), while ${mobileBottom} has the lowest (${mobileMin}).</p>`);
+  if (mobileDefTop) insights.push(`<p><strong>Mobile Deficiencies</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${mobileDefTop} has the highest Mobile deficiencies (${mobileDefMax}).</p>`);
+  if (ambushTop) insights.push(`<p><strong>Ambush Performance</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${ambushTop} has the highest Ambush checks (${ambushMax}), while ${ambushBottom} has the lowest (${ambushMin}).</p>`);
+  if (ambushDefTop) insights.push(`<p><strong>Ambush Deficiencies</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${ambushDefTop} has the highest Ambush deficiencies (${ambushDefMax}).</p>`);
+
+  const highDefRate = keys.map(k => ({
+    key,
+    spmDefRate: grouped[k].spm ? (grouped[k].defSpm / grouped[k].spm) * 100 : 0,
+    cvvrsDefRate: grouped[k].cvvrs ? (grouped[k].defCvvrs / grouped[k].cvvrs) * 100 : 0,
+    mobileDefRate: grouped[k].mobile ? (grouped[k].defMobile / grouped[k].mobile) * 100 : 0,
+    ambushDefRate: grouped[k].ambush ? (grouped[k].defAmbush / grouped[k].ambush) * 100 : 0
+  }));
+  const highSpmDefRate = highDefRate.reduce((a, b) => a.spmDefRate > b.spmDefRate ? a : b, { spmDefRate: 0 });
+  const highCvvrsDefRate = highDefRate.reduce((a, b) => a.cvvrsDefRate > b.cvvrsDefRate ? a : b, { cvvrsDefRate: 0 });
+  const highMobileDefRate = highDefRate.reduce((a, b) => a.mobileDefRate > b.mobileDefRate ? a : b, { mobileDefRate: 0 });
+  const highAmbushDefRate = highDefRate.reduce((a, b) => a.ambushDefRate > b.ambushDefRate ? a : b, { ambushDefRate: 0 });
+
+  if (highSpmDefRate.spmDefRate > 10) insights.push(`<p><strong>High SPM Deficiency Rate</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${highSpmDefRate.key} has a high SPM deficiency rate (${highSpmDefRate.spmDefRate.toFixed(2)}%). Investigate potential issues.</p>`);
+  if (highCvvrsDefRate.cvvrsDefRate > 10) insights.push(`<p><strong>High CVVRS Deficiency Rate</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${highCvvrsDefRate.key} has a high CVVRS deficiency rate (${highCvvrsDefRate.cvvrsDefRate.toFixed(2)}%).</p>`);
+  if (highMobileDefRate.mobileDefRate > 10) insights.push(`<p><strong>High Mobile Deficiency Rate</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${highMobileDefRate.key} has a high Mobile deficiency rate (${highMobileDefRate.mobileDefRate.toFixed(2)}%).</p>`);
+  if (highAmbushDefRate.ambushDefRate > 10) insights.push(`<p><strong>High Ambush Deficiency Rate</strong>: ${mode === 'division' ? 'Division' : 'Date'} ${highAmbushDefRate.key} has a high Ambush deficiency rate (${highAmbushDefRate.ambushDefRate.toFixed(2)}%).</p>`);
+
+  insightsDiv.innerHTML = insights.join('');
+
+  document.getElementById('excelExportBtn').dataset.excelMainData = JSON.stringify(excelMainData);
+  document.getElementById('excelExportBtn').dataset.excelAmbushData = JSON.stringify(excelAmbushData);
 }
 
-function sortTable(column) {
-  summaryData.sort((a, b) => {
-    if (column === 'sn' || column === 'checks' || column === 'deficiencies') {
-      return a[column] - b[column];
+function sortAnalysisTable(column, index) {
+  const mode = selectedDivision === 'ALL' ? 'division' : 'date';
+  const keys = Object.keys(grouped);
+  keys.sort((a, b) => {
+    if (column === 'key') return a.localeCompare(b);
+    if (column.endsWith('DefRate')) {
+      const metric = column.replace('DefRate', '');
+      const aRate = grouped[a][metric] ? (grouped[a][`def${metric.charAt(0).toUpperCase() + metric.slice(1)}`] / grouped[a][metric]) * 100 : 0;
+      const bRate = grouped[b][metric] ? (grouped[b][`def${metric.charAt(0).toUpperCase() + metric.slice(1)}`] / grouped[b][metric]) * 100 : 0;
+      return bRate - aRate;
     }
-    return a[column].localeCompare(b[column]);
+    return grouped[b][column] - grouped[a][column];
   });
-  renderTables();
+  renderAnalysisTable();
 }
 
-function sortDivisionTable(column) {
-  const divisions = Object.keys(divisionSummaryData);
-  divisions.sort((a, b) => {
-    if (column === 'division') return a.localeCompare(b);
-    return divisionSummaryData[b][column] - divisionSummaryData[a][column];
+function sortAmbushTable(column, index) {
+  const mode = selectedDivision === 'ALL' ? 'division' : 'date';
+  const keys = Object.keys(grouped);
+  keys.sort((a, b) => {
+    if (column === 'key') return a.localeCompare(b);
+    if (column.includes('DefRate')) {
+      const i = parseInt(column.match(/\d+/)[0]);
+      const aRate = grouped[a][`ambush${i}`] ? (grouped[a][`defAmbush${i}`] / grouped[a][`ambush${i}`]) * 100 : 0;
+      const bRate = grouped[b][`ambush${i}`] ? (grouped[b][`defAmbush${i}`] / grouped[b][`ambush${i}`]) * 100 : 0;
+      return bRate - aRate;
+    }
+    const i = column.includes('defAmbush') ? parseInt(column.match(/\d+/)[0]) : parseInt(column.match(/\d+/)[0]);
+    return grouped[b][column] - grouped[a][column];
   });
-  renderTables();
+  renderAnalysisTable();
 }
 
 function exportToExcel() {
-  try {
-    const excelSummaryData = JSON.parse(document.getElementById('excelBtn').dataset.excelSummaryData || '[]');
-    const excelDivisionSummaryData = JSON.parse(document.getElementById('excelBtn').dataset.excelDivisionSummaryData || '[]');
-    const excelRemarksData = JSON.parse(document.getElementById('excelBtn').dataset.excelRemarksData || '[]');
-    if (excelSummaryData.length === 0 && excelDivisionSummaryData.length === 0 && excelRemarksData.length === 0) {
-      alert('No data available to export to Excel.');
-      return;
-    }
-    const wb = XLSX.utils.book_new();
-    if (excelSummaryData.length > 0) {
-      const wsSummary = XLSX.utils.json_to_sheet(excelSummaryData);
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'Category Summary');
-    }
-    if (excelDivisionSummaryData.length > 0) {
-      const wsDivisionSummary = XLSX.utils.json_to_sheet(excelDivisionSummaryData);
-      XLSX.utils.book_append_sheet(wb, wsDivisionSummary, 'Division Summary');
-    }
-    if (excelRemarksData.length > 0) {
-      const wsRemarks = XLSX.utils.json_to_sheet(excelRemarksData);
-      XLSX.utils.book_append_sheet(wb, wsRemarks, 'Remarks');
-    }
-    const today = new Date().toISOString().split('T')[0];
-    XLSX.write(wb, `Crew_Summary_Remarks_${today}.xlsx`);
-  } catch (err) {
-    console.error('Excel Export Error:', err);
-    alert('Failed to export Excel. Please check the console for details or try again.');
+  const mainData = JSON.parse(document.getElementById('excelExportBtn').dataset.excelMainData || '[]');
+  const ambushData = JSON.parse(document.getElementById('excelExportBtn').dataset.excelAmbushData || '[]');
+  if (mainData.length === 0 && ambushData.length === 0) {
+    alert('No data available to export.');
+    return;
   }
+  const wb = XLSX.utils.book_new();
+  if (mainData.length) {
+    const wsMain = XLSX.utils.json_to_sheet(mainData);
+    XLSX.utils.book_append_sheet(wb, wsMain, 'Main Metrics');
+  }
+  if (ambushData.length) {
+    const wsAmbush = XLSX.utils.json_to_sheet(ambushData);
+    XLSX.utils.book_append_sheet(wb, wsAmbush, 'Ambush Performance Details');
+  }
+  const today = new Date().toISOString().split('T')[0];
+  XLSX.write(wb, `Crew_Performance_Analysis_${today}.xlsx`);
 }
 
-async function showPdfPreview() {
-  try {
-    const previewContent = document.getElementById('previewContent');
-    previewContent.innerHTML = '';
-
-    const pageWidth = 297; // A4 landscape width in mm
-    const pageHeight = 210; // A4 landscape height in mm
-    const margin = pdfSettings.margin;
-    const contentWidth = pageWidth - 2 * margin;
-    const contentHeight = pageHeight - 2 * margin;
-    const lineHeight = pdfSettings.fontSize * 0.3528 * 1.2;
-
-    const header = document.querySelector('.header-buttons');
-    const topBar = document.querySelector('.top-bar');
-    const canvas = await html2canvas(document.body, {
-      scale: 0.5,
-      useCORS: true,
-      dpi: 72,
-      letterRendering: true,
-      scrollX: 0,
-      scrollY: 0,
-      width: header.offsetWidth,
-      height: header.offsetHeight + topBar.offsetHeight + 15
-    });
-    const imgWidth = contentWidth / 2;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-    let yOffset = margin + 10;
-    let pageCount = 1;
-    let content = [];
-
-    const headerHeight = imgHeight * 2.835;
-    content.push(`<strong>Header & Top Bar</strong> (${headerHeight.toFixed(1)}mm)<br><img src="${canvas.toDataURL('image/jpeg', 0.5)}" style="width:${imgWidth}px; height:${imgHeight}px;">`);
-    yOffset += headerHeight;
-
-    const summaryRows = summaryData.length + 1;
-    const summaryHeight = summaryRows * lineHeight;
-    if (yOffset + summaryHeight > contentHeight) {
-      pageCount++;
-      content.push('--- Page Break ---');
-      yOffset = margin;
-    }
-    content.push(`<strong>Category Summary Table</strong> (${summaryRows} rows, ${summaryHeight.toFixed(1)}mm)`);
-    yOffset += summaryHeight + 5;
-
-    if (showDivisionSummary) {
-      const divisionRows = Object.keys(divisionSummaryData).length + 1;
-      const divisionHeight = divisionRows * lineHeight;
-      if (yOffset + divisionHeight > contentHeight) {
-        pageCount++;
-        content.push('--- Page Break ---');
-        yOffset = margin;
-      }
-      content.push(`<strong>Division Summary Table</strong> (${divisionRows} rows, ${divisionHeight.toFixed(1)}mm)`);
-      yOffset += divisionHeight + 5;
-    }
-
-    const remarksRows = remarksData.length + (buttonDivision === 'ALL' ? new Set(remarksData.map(r => r.division)).size : 0);
-    const remarksHeight = remarksRows * lineHeight;
-    const remarksPages = Math.ceil((yOffset + remarksHeight) / contentHeight);
-    content.push(`<strong>Remarks Table</strong> (${remarksRows} rows, ${remarksHeight.toFixed(1)}mm)`);
-    pageCount += remarksPages - 1;
-
-    const paginationHeight = 10;
-    if (yOffset + paginationHeight > contentHeight) {
-      pageCount++;
-      content.push('--- Page Break ---');
-    }
-    const pagination = document.querySelector('.pagination');
-    const paginationCanvas = await html2canvas(pagination, {
-      scale: 0.5,
-      useCORS: true,
-      dpi: 72,
-      letterRendering: true
-    });
-    const paginationImgWidth = contentWidth / 2;
-    const paginationImgHeight = (paginationCanvas.height * paginationImgWidth) / paginationCanvas.width;
-    content.push(`<strong>Pagination Controls</strong> (${paginationHeight.toFixed(1)}mm)<br><img src="${paginationCanvas.toDataURL('image/jpeg', 0.5)}" style="width:${paginationImgWidth}px; height:${paginationImgHeight}px;">`);
-
-    let currentPage = 1;
-    let pageContent = [];
-    content.forEach(item => {
-      if (item === '--- Page Break ---') {
-        previewContent.insertAdjacentHTML('beforeend', `<div class="preview-page"><strong>Page ${currentPage}</strong><br>${pageContent.join('<br>')}</div>`);
-        currentPage++;
-        pageContent = [];
-      } else {
-        pageContent.push(item);
-      }
-    });
-    if (pageContent.length > 0) {
-      previewContent.insertAdjacentHTML('beforeend', `<div class="preview-page"><strong>Page ${currentPage}</strong><br>${pageContent.join('<br>')}</div>`);
-    }
-
-    const estimatedSize = (summaryRows + (showDivisionSummary ? Object.keys(divisionSummaryData).length : 0) + remarksRows) * 0.03 + 1.0;
-    previewContent.insertAdjacentHTML('beforeend', `<p>Estimated File Size: ${estimatedSize.toFixed(1)} MB</p>`);
-
-    document.getElementById('pdfPreviewModal').style.display = 'flex';
-  } catch (err) {
-    console.error('PDF Preview Error:', err);
-    alert('Failed to generate PDF preview. Please check the console for details or try again.');
-  }
+function selectDivisionRow(division) {
+  selectedDivision = division;
+  renderAllCharts();
+  renderDivisionButtons();
 }
 
-async function exportToPDF() {
-  try {
-    document.getElementById('pdfPreviewModal').style.display = 'none';
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = pdfSettings.margin;
-    const contentWidth = pageWidth - 2 * margin;
+function showDeficiencyPopup(chartId) {
+  // Find which metric this chart is for
+  let metric = '';
+  if (chartId === 'spmChart') metric = 'spm';
+  else if (chartId === 'cvvrsChart') metric = 'cvvrs';
+  else if (chartId === 'mobileChart') metric = 'mobile';
+  else if (chartId === 'ambushChart') metric = 'ambush';
+  else if (/^ambush\dChart$/.test(chartId)) metric = chartId.replace('Chart','').toLowerCase();
+  else return;
 
-    if (!summaryData.length && !remarksData.length) {
-      alert('No data available to export to PDF.');
-      return;
-    }
-
-    const header = document.querySelector('.header-buttons');
-    const topBar = document.querySelector('.top-bar');
-    const canvas = await html2canvas(document.body, {
-      scale: 1.0,
-      useCORS: true,
-      dpi: 96,
-      letterRendering: true,
-      scrollX: 0,
-      scrollY: 0,
-      width: header.offsetWidth,
-      height: header.offsetHeight + topBar.offsetHeight + 15
-    });
-    const imgWidth = contentWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const quality = canvas.width * canvas.height > 5000000 ? 0.6 : 0.7;
-    doc.addImage(canvas.toDataURL('image/jpeg', quality), 'JPEG', margin, margin, imgWidth, imgHeight);
-
-    let yOffset = margin + imgHeight + 5;
-
-    doc.setFont('Roboto', 'normal');
-    doc.setFontSize(pdfSettings.fontSize);
-    doc.text('Category Summary', pageWidth / 2, yOffset, { align: 'center' });
-    yOffset += 4;
-    doc.autoTable({
-      startY: yOffset,
-      head: [['SN', 'Category', 'No of Checks Conducted', 'Deficiencies Noticed', 'Divisions Deficiencies']],
-      body: summaryData.map(row => [row.sn, row.category, row.checks, row.deficiencies, row.divisionsWithDef]),
-      theme: 'grid',
-      styles: {
-        font: 'Roboto',
-        fontSize: pdfSettings.fontSize,
-        textColor: [26, 26, 26],
-        lineColor: [224, 230, 239],
-        lineWidth: 0.2,
-        cellPadding: 0.5,
-        overflow: 'linebreak',
-        minCellHeight: pdfSettings.fontSize * 0.3528 * 1.2,
-        rowPageBreak: 'avoid'
-      },
-      headStyles: {
-        fillColor: [0, 116, 217],
-        textColor: [255, 255, 255]
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252]
-      },
-      columnStyles: {
-        0: { cellWidth: 'auto' },
-        1: { cellWidth: 'auto' },
-        2: { cellWidth: 'auto' },
-        3: { cellWidth: 'auto' },
-        4: { cellWidth: 'auto' }
-      },
-      didParseCell: (data) => {
-        if (data.section === 'body') {
-          data.cell.styles.cellWidth = Math.max(60 / 2.835 * pdfSettings.columnWidthMultiplier, data.cell.raw.toString().length * pdfSettings.fontSize * 0.1);
-        }
-      },
-      margin: { top: margin, left: margin, right: margin }
-    });
-    yOffset = doc.lastAutoTable.finalY + 5;
-
-    if (showDivisionSummary) {
-      doc.text('Division-Based Summary', pageWidth / 2, yOffset, { align: 'center' });
-      yOffset += 4;
-      doc.autoTable({
-        startY: yOffset,
-        head: [['Division', 'Total SPMs', 'SPM Def.', 'Total CVVRS', 'CVVRS Def.', 'CUG Checked', 'CUG Misused', 'Personal Mob. Checked', 'Personal Mob. Misused', 'Mob. Declaration', 'Mismatch', 'Lobby + Online', 'Mob. Def.', 'Ambush: Yellow-Yellow DFC', 'Def: Yellow-Yellow DFC', 'Ambush: Yellow IR', 'Def: Yellow IR', 'ALP RS Valve Check', 'Def: ALP RS Valve', 'MEMU Speed at PF', 'OverSpeeding Cases', 'IBS Signal Passed', 'Def: IBS Signal', 'Running Room (Wee Hours)', 'Def: Running Room', 'Stabling Checked', 'Def: Stabling', 'Shunting Checked', 'Def: Shunting']],
-        body: Object.keys(divisionSummaryData).map(division => {
-          const g = divisionSummaryData[division];
-          return [division, g.spm, g.defSpm, g.cvvrs, g.defCvvrs, g.cugChecked, g.cugMisused, g.personalMobChecked, g.personalMobMisused, g.mobDeclaration, g.mismatch, g.lobbyOnline, g.mobDef, g.yellowYellowDfc, g.defYellowYellowDfc, g.yellowIr, g.defYellowIr, g.alpRsValve, g.defAlpRsValve, g.memuSpeed, g.overspeeding, g.ibsSignal, g.defIbsSignal, g.runningRoom, g.defRunningRoom, g.stablingChecked, g.defStabling, g.shuntingChecked, g.defShunting];
-        }),
-        theme: 'grid',
-        styles: {
-          font: 'Roboto',
-          fontSize: pdfSettings.fontSize,
-          textColor: [26, 26, 26],
-          lineColor: [224, 230, 239],
-          lineWidth: 0.2,
-          cellPadding: 0.5,
-          overflow: 'linebreak',
-          minCellHeight: pdfSettings.fontSize * 0.3528 * 1.2,
-          rowPageBreak: 'avoid'
-        },
-        headStyles: {
-          fillColor: [0, 116, 217],
-          textColor: [255, 255, 255]
-        },
-        alternateRowStyles: {
-          fillColor: [248, 250, 252]
-        },
-        columnStyles: Object.fromEntries(Array(29).fill().map((_, i) => [i, { cellWidth: 'auto' }])),
-        didParseCell: (data) => {
-          if (data.section === 'body') {
-            data.cell.styles.cellWidth = Math.max(60 / 2.835 * pdfSettings.columnWidthMultiplier, data.cell.raw.toString().length * pdfSettings.fontSize * 0.1);
-          }
-        },
-        margin: { top: margin, left: margin, right: margin }
-      });
-      yOffset = doc.lastAutoTable.finalY + 5;
-    }
-
-    doc.text('Remarks Details', pageWidth / 2, yOffset, { align: 'center' });
-    yOffset += 4;
-    const remarksTableData = [];
-    remarksData.forEach(row => {
-      if (row.isHeader) {
-        remarksTableData.push([{ content: row.division, colSpan: 7, styles: { fillColor: [224, 230, 239], textColor: [26, 26, 26], fontStyle: 'bold', halign: 'left' } }]);
-      } else {
-        const catClass = row.class.split(' ')[0] || 'cat-spm';
-        const fillColor = {
-          'cat-spm': [230, 243, 255],
-          'cat-cvvrs': [230, 255, 230],
-          'cat-cug': [255, 230, 230],
-          'cat-personal-mob': [255, 245, 230],
-          'cat-mob-declaration': [230, 230, 255],
-          'cat-lobby-online': [240, 230, 255],
-          'cat-yellow-dfc': [255, 255, 230],
-          'cat-yellow-ir': [230, 255, 240],
-          'cat-alp-rs': [255, 230, 240],
-          'cat-memu-speed': [230, 250, 255],
-          'cat-ibs-signal': [240, 255, 230],
-          'cat-running-room': [255, 230, 255],
-          'cat-stabling': [230, 240, 255],
-          'cat-shunting': [255, 250, 230]
-        }[catClass] || [255, 255, 255];
-        remarksTableData.push([
-          { content: row.date },
-          { content: row.division },
-          { content: row.categories.join(', '), styles: { fillColor } },
-          { content: row.remarks, styles: { fillColor } },
-          { content: row.e_date },
-          { content: row.action_taken },
-          { content: row.status }
-        ]);
+  // Find deficiency data
+  let details = [];
+  Object.keys(deficiencyMap).forEach(key => {
+    deficiencyMap[key].forEach(item => {
+      if (metric === 'spm' && item.spm > 0) details.push(item);
+      else if (metric === 'cvvrs' && item.cvvrs > 0) details.push(item);
+      else if (metric === 'mobile' && item.mobile > 0) details.push(item);
+      else if (metric === 'ambush' && item.ambush > 0) details.push(item);
+      // For ambush1..8
+      else if (/^ambush\d$/.test(metric)) {
+        // Not available in deficiencyMap, so skip for sub-ambush
       }
     });
-    doc.autoTable({
-      startY: yOffset,
-      head: [['Date', 'Division', 'Category', 'Remarks', 'E_Date', 'Action Taken Remarks', 'Status']],
-      body: remarksTableData,
-      theme: 'grid',
-      styles: {
-        font: 'Roboto',
-        fontSize: pdfSettings.fontSize,
-        textColor: [26, 26, 26],
-        lineColor: [224, 230, 239],
-        lineWidth: 0.2,
-        cellPadding: 0.5,
-        overflow: 'linebreak',
-        minCellHeight: pdfSettings.fontSize * 0.3528 * 1.2,
-        rowPageBreak: 'avoid'
-      },
-      headStyles: {
-        fillColor: [0, 116, 217],
-        textColor: [255, 255, 255]
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252]
-      },
-      columnStyles: {
-        0: { cellWidth: 'auto' },
-        1: { cellWidth: 'auto' },
-        2: { cellWidth: 'auto' },
-        3: { cellWidth: 'auto' },
-        4: { cellWidth: 'auto' },
-        5: { cellWidth: 'auto' },
-        6: { cellWidth: 'auto' }
-      },
-      didParseCell: (data) => {
-        if (data.section === 'body' && !data.row.cells[0].styles.fillColor) {
-          data.cell.styles.cellWidth = Math.max(60 / 2.835 * pdfSettings.columnWidthMultiplier, data.cell.raw.toString().length * pdfSettings.fontSize * 0.1);
-        }
-      },
-      margin: { top: margin, left: margin, right: margin }
-    });
-    yOffset = doc.lastAutoTable.finalY + 5;
-
-    const pagination = document.querySelector('.pagination');
-    const paginationCanvas = await html2canvas(pagination, {
-      scale: 1.0,
-      useCORS: true,
-      dpi: 96,
-      letterRendering: true
-    });
-    const paginationImgWidth = contentWidth;
-    const paginationImgHeight = (paginationCanvas.height * paginationImgWidth) / paginationCanvas.width;
-    if (yOffset + paginationImgHeight > pageHeight - margin) {
-      doc.addPage();
-      yOffset = margin;
-    }
-    doc.addImage(paginationCanvas.toDataURL('image/jpeg', quality), 'JPEG', margin, yOffset, paginationImgWidth, paginationImgHeight);
-
-    const today = new Date().toISOString().split('T')[0];
-    doc.save(`Crew_Summary_Remarks_${today}.pdf`);
-  } catch (err) {
-    console.error('PDF Export Error:', err);
-    alert('Failed to export PDF. Please check the console for details or try again.');
+  });
+  // Render details
+  let html = '<button class="screenshot-btn" id="defScreenshotBtn" style="float:right;margin-bottom:8px;">📸 Screenshot</button>';
+  if (details.length === 0) {
+    html += '<p>No deficiency details available for this metric.</p>';
+  } else {
+    html += `<table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Division</th>
+          <th>Name</th>
+          <th>Remarks</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${details.map(d=>`
+          <tr>
+            <td>${d.date}</td>
+            <td>${d.division}</td>
+            <td>${d.name}</td>
+            <td>${d.remarks}</td>
+            <td>${d[metric]}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
   }
+  document.getElementById('deficiencyDetails').innerHTML = html;
+  document.getElementById('deficiencyPopup').style.display = 'block';
+}
+
+// Chart click event for deficiency charts (robust and always works)
+function renderChart(id, label, data1, defData, labels) {
+  const ctx = document.getElementById(id).getContext('2d');
+  if (charts[id]) charts[id].destroy();
+  let datasets;
+  if (showOnlyDeficiency) {
+    datasets = [
+      { label: `${label} Deficiency`, data: defData, backgroundColor: chartType === 'bar' ? '#ff4d4d' : 'transparent', borderColor: '#ff4d4d', borderWidth: 2, fill: chartType === 'line' }
+    ];
+  } else {
+    datasets = [
+      { label, data: data1, backgroundColor: chartType === 'bar' ? '#0074D9' : 'transparent', borderColor: '#0074D9', borderWidth: 2, fill: chartType === 'line' },
+      { label: `${label} Deficiency`, data: defData, backgroundColor: chartType === 'bar' ? '#ff4d4d' : 'transparent', borderColor: '#ff4d4d', borderWidth: 2, fill: chartType === 'line' }
+    ];
+  }
+  charts[id] = new Chart(ctx, {
+    type: chartType,
+    data: {
+      labels,
+      datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        datalabels: {
+          color: '#222',
+          anchor: 'end',
+          align: 'top',
+          font: { weight: 'bold', size: 10 },
+          formatter: v => v || ''
+        },
+        legend: { display: false },
+        title: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#e0e6ef' } },
+        x: { grid: { color: '#e0e6ef' } }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+  ctx.canvas.onclick = function(evt) {
+    const points = charts[id].getElementsAtEventForMode(evt, 'nearest', { intersect: true }, false);
+    if (points.length) {
+      const datasetIndex = points[0].datasetIndex;
+      // If only deficiency is shown, datasetIndex is 0
+      if ((showOnlyDeficiency && datasetIndex === 0) || (!showOnlyDeficiency && datasetIndex === 1)) {
+        showDeficiencyPopup(id, points[0].index);
+      }
+    }
+  };
 }
 </script>
 </body>
