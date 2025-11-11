@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,287 +13,54 @@
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
-      background: #f5f7fa;
-      color: #1a1a1a;
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
-      box-sizing: border-box;
-    }
-    .top-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      padding: 0.75rem;
-      background: #fff;
-      border-bottom: 1px solid #e0e6ef;
-      justify-content: flex-start;
-    }
-    .header-buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      justify-content: center;
-      padding: 1rem;
-      background: linear-gradient(to right, #003366, #0074D9);
-    }
-    .date-picker, .division-input {
-      padding: 0.5rem;
-      font-size: 0.95rem;
-      border-radius: 0.375rem;
-      border: 1px solid #b0c4de;
-      background: #f8fafc;
-      color: #003366;
-      outline: none;
-      width: 200px;
-    }
-    .btn, .header-btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      border: 1px solid #0074D9;
-      background: #0074D9;
-      color: #fff;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
-    }
-    .btn:hover, .header-btn:hover {
-      background: #003366;
-      transform: scale(1.05);
-    }
-    .filter-btn {
-      padding: 0.5rem 1rem;
-      margin: 0.25rem;
-      border-radius: 0.375rem;
-      border: 1px solid #0074D9;
-      background: #e6f0fa;
-      color: #003366;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s, border-color 0.2s;
-    }
-    .filter-btn:hover {
-      background: #b0c4de;
-    }
-    .filter-btn.active {
-      background: #0074D9;
-      color: #fff;
-      border-color: #003366;
-    }
-    .table-container {
-      max-width: 98%;
-      margin: 1rem auto;
-      background: #fff;
-      border-radius: 0.5rem;
-      box-shadow: 0 2px 6px rgba(0, 51, 102, 0.1);
-      overflow-x: auto;
-      padding: 1rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: auto;
-    }
-    th {
-      background: #0074D9;
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    th:hover {
-      background: #003366;
-    }
-    th, td {
-      border: 1px solid #e0e6ef;
-      padding: 0.5rem;
-      text-align: center;
-      font-size: 0.9rem;
-      min-width: 60px;
-    }
-    tr:nth-child(even) td {
-      background: #f8fafc;
-    }
-    tr:hover td {
-      background: #e6f0fa;
-    }
-    .section-header {
-      margin: 2rem 0 1rem;
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: #003366;
-      text-align: center;
-    }
-    .button-container {
-      margin: 1rem auto;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-    .pagination {
-      margin: 1rem auto;
-      display: flex;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-    .pagination-btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      border: 1px solid #0074D9;
-      background: #e6f0fa;
-      color: #003366;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .pagination-btn:hover {
-      background: #b0c4de;
-    }
-    .pagination-btn.disabled {
-      background: #d3d3d3;
-      cursor: not-allowed;
-    }
-    .division-group-header {
-      background: #e0e6ef;
-      font-weight: bold;
-      text-align: left;
-      padding: 0.5rem;
-    }
-    .hidden {
-      display: none;
-    }
-    .cat-spm { background-color: #e6f3ff; }
-    .cat-cvvrs { background-color: #e6ffe6; }
-    .cat-cug { background-color: #ffe6e6; }
-    .cat-personal-mob { background-color: #fff5e6; }
-    .cat-mob-declaration { background-color: #e6e6ff; }
-    .cat-lobby-online { background-color: #f0e6ff; }
-    .cat-yellow-dfc { background-color: #ffffe6; }
-    .cat-yellow-ir { background-color: #e6fff0; }
-    .cat-alp-rs { background-color: #ffe6f0; }
-    .cat-memu-speed { background-color: #e6faff; }
-    .cat-ibs-signal { background-color: #f0ffe6; }
-    .cat-running-room { background-color: #ffe6ff; }
-    .cat-stabling { background-color: #e6f0ff; }
-    .cat-shunting { background-color: #fffae6; }
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1000;
-      justify-content: center;
-      align-items: center;
-    }
-    .modal-content {
-      background: #fff;
-      padding: 1.5rem;
-      border-radius: 0.5rem;
-      max-width: 600px;
-      width: 90%;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
-    .modal-content h2 {
-      font-size: 1.25rem;
-      margin-bottom: 1rem;
-      color: #003366;
-    }
-    .preview-page {
-      border: 1px solid #e0e6ef;
-      padding: 0.5rem;
-      margin: 0.5rem 0;
-      background: #fff;
-      font-size: 0.8rem;
-    }
-    .preview-page img {
-      max-width: 100%;
-      height: auto;
-      border: 1px solid #e0e6ef;
-    }
-    .preview-controls {
-      margin-top: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .preview-controls label {
-      font-weight: 500;
-      color: #003366;
-    }
-    .preview-controls input[type="range"] {
-      width: 100%;
-    }
-    .preview-controls .btn {
-      margin-top: 0.5rem;
-    }
-    @media (max-width: 768px) {
-      .top-bar, .button-container, .header-buttons {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .date-picker, .division-input {
-        width: 100%;
-      }
-      th, td {
-        font-size: 0.8rem;
-        padding: 0.4rem;
-        min-width: 50px;
-      }
-      .table-container {
-        padding: 0.5rem;
-      }
-    }
-    @media (max-width: 480px) {
-      th, td {
-        font-size: 0.7rem;
-        padding: 0.3rem;
-        min-width: 40px;
-      }
-      .btn, .header-btn, .filter-btn, .pagination-btn {
-        font-size: 0.8rem;
-        padding: 0.4rem 0.8rem;
-      }
-      .section-header {
-        font-size: 1.2rem;
-      }
-      .modal-content {
-        width: 95%;
-        padding: 1rem;
-      }
-    }
-    .pdf-table {
-      font-size: 8px;
-      width: 100%;
-      border-collapse: collapse;
-    }
-    .pdf-table th, .pdf-table td {
-      border: 1px solid #e0e6ef;
-      padding: 3px;
-      text-align: center;
-      word-break: break-word;
-      white-space: normal;
-      min-width: 60px;
-    }
-    .pdf-table th {
-      background: #0074D9;
-      color: #fff;
-    }
-    .pdf-table tr:nth-child(even) td {
-      background: #f8fafc;
-    }
-    .pdf-table .division-group-header {
-      background: #e0e6ef;
-      text-align: left;
-      font-weight: bold;
-    }
+    body {font-family: 'Roboto', sans-serif; background:#f5f7fa; color:#1a1a1a; margin:0; padding:0; min-height:100vh;}
+    .top-bar {display:flex; flex-wrap:wrap; gap:0.75rem; padding:0.75rem; background:#fff; border-bottom:1px solid #e0e6ef;}
+    .header-buttons {display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:center; padding:1rem; background:linear-gradient(to right,#003366,#0074D9);}
+    .date-picker, .division-input {padding:0.5rem; font-size:0.95rem; border-radius:0.375rem; border:1px solid #b0c4de; background:#f8fafc; color:#003366; width:200px;}
+    .btn, .header-btn {padding:0.5rem 1rem; border-radius:0.375rem; border:1px solid #0074D9; background:#0074D9; color:#fff; font-weight:500; cursor:pointer;}
+    .btn:hover, .header-btn:hover {background:#003366; transform:scale(1.05);}
+    .filter-btn {padding:0.5rem 1rem; margin:0.25rem; border-radius:0.375rem; border:1px solid #0074D9; background:#e6f0fa; color:#003366; font-weight:500; cursor:pointer;}
+    .filter-btn:hover {background:#b0c4de;}
+    .filter-btn.active {background:#0074D9; color:#fff; border-color:#003366;}
+    .table-container {max-width:98%; margin:1rem auto; background:#fff; border-radius:0.5rem; box-shadow:0 2px 6px rgba(0,51,102,0.1); overflow-x:auto; padding:1rem;}
+    table {width:100%; border-collapse:collapse; table-layout:auto;}
+    th {background:#0074D9; color:#fff; font-weight:600; cursor:pointer; position:sticky; top:0; z-index:10;}
+    th:hover {background:#003366;}
+    th, td {border:1px solid #e0e6ef; padding:0.5rem; text-align:center; font-size:0.9rem; min-width:60px;}
+    tr:nth-child(even) td {background:#f8fafc;}
+    tr:hover td {background:#e6f0fa;}
+    .section-header {margin:2rem 0 1rem; font-size:1.5rem; font-weight:600; color:#003366; text-align:center;}
+    .button-container {margin:1rem auto; display:flex; flex-wrap:wrap; justify-content:center; gap:0.5rem;}
+    .pagination {margin:1rem auto; display:flex; justify-content:center; gap:0.5rem;}
+    .pagination-btn {padding:0.5rem 1rem; border-radius:0.375rem; border:1px solid #0074D9; background:#e6f0fa; color:#003366; cursor:pointer;}
+    .pagination-btn:hover {background:#b0c4de;}
+    .pagination-btn.disabled {background:#d3d3d3; cursor:not-allowed;}
+    .division-group-header {background:#e0e6ef; font-weight:bold; text-align:left; padding:0.5rem;}
+    .hidden {display:none;}
+    .cat-spm {background-color: #e6f3ff; }
+    .cat-cvvrs {background-color: #e6ffe6; }
+    .cat-mobile {background-color: #fff5e6; }
+    .cat-ambush-dfc {background-color: #ffe6e6; }
+    .cat-alprs {background-color: #e6e6ff; }
+    .cat-memu {background-color: #f0e6ff; }
+    .cat-ibh {background-color: #ffffe6; }
+    .cat-runningroom {background-color: #e6fff0; }
+    .cat-stabling {background-color: #ffe6f0; }
+    .cat-shunting {background-color: #e6faff; }
+    .modal {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;}
+    .modal-content {background:#fff; padding:1.5rem; border-radius:0.5rem; max-width:600px; width:90%; max-height:80vh; overflow-y:auto;}
+    .preview-page {border:1px solid #e0e6ef; padding:0.5rem; margin:0.5rem 0; background:#fff; font-size:0.8rem;}
+    .preview-page img {max-width:100%; height:auto; border:1px solid #e0e6ef;}
+    .preview-controls {margin-top:1rem; display:flex; flex-direction:column; gap:0.5rem;}
+    .preview-controls label {font-weight:500; color:#003366;}
+    .preview-controls input[type="range"] {width:100%;}
+    .pdf-table {font-size:8px; width:100%; border-collapse:collapse;}
+    .pdf-table th, .pdf-table td {border:1px solid #e0e6ef; padding:3px; text-align:center; word-break:break-word; white-space:normal; min-width:60px;}
+    .pdf-table th {background:#0074D9; color:#fff;}
+    .pdf-table tr:nth-child(even) td {background:#f8fafc;}
+    .pdf-table .division-group-header {background:#e0e6ef; text-align:left; font-weight:bold;}
+    @media (max-width:768px) {.top-bar,.button-container,.header-buttons{flex-direction:column; align-items:stretch;} .date-picker,.division-input{width:100%;} th,td{font-size:0.8rem; padding:0.4rem;}}
+    @media (max-width:480px) {th,td{font-size:0.7rem; padding:0.3rem;} .btn,.header-btn,.filter-btn,.pagination-btn{font-size:0.8rem; padding:0.4rem 0.8rem;}}
   </style>
 </head>
 <body>
@@ -367,14 +135,27 @@
 const { jsPDF } = window.jspdf;
 const SHEET_ID = '12mtmU8RBHFLUpFXYCdGH96mMBL_Ec6cpvh0dR_CotZg';
 const API_KEY = 'AIzaSyBkKVtdfFbFfdFE8FqSaUGZvptxj0Fysco';
-const RANGE = 'CrewData!A1:AJ1000';
+const RANGE = 'Responses!B1:AQ1000';
 let allData = [], headers = [], summaryData = [], divisionSummaryData = {}, remarksData = [];
 let selectedDivision = '', buttonDivision = 'ALL', buttonCategory = 'ALL';
 let fromDate = '', toDate = '', showDivisionSummary = false;
 let currentPage = 1, rowsPerPage = 100;
 let pdfSettings = { fontSize: 8, columnWidthMultiplier: 1.0, margin: 8 };
 
-// Fetch data with error handling
+// Categories with modified mappings
+const categories = [
+  { sn: 1, name: 'SPM', checkCol: 3, defCol: 4, remarkCol: 5, class: 'cat-spm' },
+  { sn: 2, name: 'CVVRS', checkCol: 6, defCol: 7, remarkCol: 8, class: 'cat-cvvrs' },
+  { sn: 3, name: 'Mobile', checkCol: [9, 11, 13, 15, 16], defCol: [10, 12, 14, 17], remarkCol: 18, class: 'cat-mobile' },
+  { sn: 4, name: 'Ambush DFC', checkCol: [19, 21], defCol: [20, 22], remarkCol: 23, class: 'cat-ambush-dfc' },
+  { sn: 5, name: 'ALP RS', checkCol: 24, defCol: 25, remarkCol: 26, class: 'cat-alprs' },
+  { sn: 6, name: 'MEMU', checkCol: 27, defCol: 28, remarkCol: 29, class: 'cat-memu' },
+  { sn: 7, name: 'IBH', checkCol: 30, defCol: 31, remarkCol: 32, class: 'cat-ibh' },
+  { sn: 8, name: 'Running Room', checkCol: 33, defCol: 34, remarkCol: 35, class: 'cat-runningroom' },
+  { sn: 9, name: 'Stabling', checkCol: 36, defCol: 37, remarkCol: 38, class: 'cat-stabling' },
+  { sn: 10, name: 'Shunting', checkCol: 39, defCol: 40, remarkCol: 41, class: 'cat-shunting' }
+];
+
 async function fetchData() {
   try {
     const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`);
@@ -509,59 +290,9 @@ function initUI() {
 }
 
 function renderTables() {
-  const idx = name => headers.indexOf(name);
-  const categories = [
-    { sn: 1, name: 'No. of SPMs Analyzed', checkCol: 2, defCol: 3, class: 'cat-spm' },
-    { sn: 2, name: 'No. of CVVRS Analyzed', checkCol: 4, defCol: 5, class: 'cat-cvvrs' },
-    { sn: 3, name: 'CUG Checked', checkCol: 6, defCol: 7, class: 'cat-cug' },
-    { sn: 4, name: 'Personal Mob. Checked', checkCol: 8, defCol: 9, class: 'cat-personal-mob' },
-    { sn: 5, name: 'Mob. Declaration', checkCol: 10, defCol: 11, class: 'cat-mob-declaration' },
-    { sn: 6, name: 'Lobby + Online', checkCol: [12, 13], defCol: 14, class: 'cat-lobby-online' },
-    { sn: 7, name: 'Ambush - Passing Yellow Yellow Signal DFC', checkCol: 15, defCol: 16, class: 'cat-yellow-dfc' },
-    { sn: 8, name: 'Ambush - Passing Yellow Signal IR', checkCol: 17, defCol: 18, class: 'cat-yellow-ir' },
-    { sn: 9, name: 'ALP RS Valve (Yellow Signal IR)', checkCol: 19, defCol: 20, class: 'cat-alp-rs' },
-    { sn: 10, name: 'MEMU/EMU Speed at PF Entry', checkCol: 21, defCol: 22, class: 'cat-memu-speed' },
-    { sn: 11, name: 'IBH Signal Passed as per Rule', checkCol: 23, defCol: 24, class: 'cat-ibs-signal' },
-    { sn: 12, name: 'Running Room (Wee Hours)', checkCol: 25, defCol: 26, class: 'cat-running-room' },
-    { sn: 13, name: 'Stabling/Securing of Loads', checkCol: 27, defCol: 28, class: 'cat-stabling' },
-    { sn: 14, name: 'Shunting operations', checkCol: 29, defCol: 30, class: 'cat-shunting' }
-  ];
-  const deficiencyColumns = [3, 5, 7, 9, 11, 14, 16, 18, 20, 22, 24, 26, 28, 30];
-  const divisionSummaryColumns = {
-    division: 1,
-    spm: 2,
-    defSpm: 3,
-    cvvrs: 4,
-    defCvvrs: 5,
-    cugChecked: 6,
-    cugMisused: 7,
-    personalMobChecked: 8,
-    personalMobMisused: 9,
-    mobDeclaration: 10,
-    mismatch: 11,
-    lobbyOnline: [12, 13],
-    mobDef: 14,
-    yellowYellowDfc: 15,
-    defYellowYellowDfc: 16,
-    yellowIr: 17,
-    defYellowIr: 18,
-    alpRsValve: 19,
-    defAlpRsValve: 20,
-    memuSpeed: 21,
-    overspeeding: 22,
-    ibsSignal: 23,
-    defIbsSignal: 24,
-    runningRoom: 25,
-    defRunningRoom: 26,
-    stablingChecked: 27,
-    defStabling: 28,
-    shuntingChecked: 29,
-    defShunting: 30
-  };
-
   const divisionData = {};
-  allData.slice(2).forEach(r => {
-    const date = r[idx('Date')], division = r[1];
+  allData.slice(1).forEach(r => {
+    const date = r[1], division = r[0];
     if (!division || !date) return;
     if (date < fromDate || date > toDate) return;
     if (selectedDivision && division !== selectedDivision) return;
@@ -574,14 +305,20 @@ function renderTables() {
     }
 
     categories.forEach(cat => {
+      let checks = 0;
       if (Array.isArray(cat.checkCol)) {
-        cat.checkCol.forEach(col => {
-          divisionData[division][cat.sn].checks += Number(r[col] || 0);
-        });
+        cat.checkCol.forEach(col => checks += Number(r[col - 1] || 0));
       } else {
-        divisionData[division][cat.sn].checks += Number(r[cat.checkCol] || 0);
+        checks = Number(r[cat.checkCol - 1] || 0);
       }
-      divisionData[division][cat.sn].deficiencies += Number(r[cat.defCol] || 0);
+      let deficiencies = 0;
+      if (Array.isArray(cat.defCol)) {
+        cat.defCol.forEach(col => deficiencies += Number(r[col - 1] || 0));
+      } else {
+        deficiencies = Number(r[cat.defCol - 1] || 0);
+      }
+      divisionData[division][cat.sn].checks += checks;
+      divisionData[division][cat.sn].deficiencies += deficiencies;
     });
   });
 
@@ -601,51 +338,36 @@ function renderTables() {
   });
 
   divisionSummaryData = {};
-  allData.slice(2).forEach(r => {
-    const date = r[idx('Date')], division = r[1];
+  allData.slice(1).forEach(r => {
+    const date = r[1], division = r[0];
     if (!division || !date) return;
     if (date < fromDate || date > toDate) return;
     if (selectedDivision && division !== selectedDivision) return;
 
     if (!divisionSummaryData[division]) {
-      divisionSummaryData[division] = {
-        spm: 0, defSpm: 0, cvvrs: 0, defCvvrs: 0, cugChecked: 0, cugMisused: 0,
-        personalMobChecked: 0, personalMobMisused: 0, mobDeclaration: 0, mismatch: 0,
-        lobbyOnline: 0, mobDef: 0, yellowYellowDfc: 0, defYellowYellowDfc: 0,
-        yellowIr: 0, defYellowIr: 0, alpRsValve: 0, defAlpRsValve: 0,
-        memuSpeed: 0, overspeeding: 0, ibsSignal: 0, defIbsSignal: 0,
-        runningRoom: 0, defRunningRoom: 0, stablingChecked: 0, defStabling: 0,
-        shuntingChecked: 0, defShunting: 0
-      };
+      divisionSummaryData[division] = categories.reduce((acc, cat) => {
+        acc[cat.name + 'Check'] = 0;
+        acc[cat.name + 'Def'] = 0;
+        return acc;
+      }, {});
     }
-    divisionSummaryData[division].spm += Number(r[divisionSummaryColumns.spm] || 0);
-    divisionSummaryData[division].defSpm += Number(r[divisionSummaryColumns.defSpm] || 0);
-    divisionSummaryData[division].cvvrs += Number(r[divisionSummaryColumns.cvvrs] || 0);
-    divisionSummaryData[division].defCvvrs += Number(r[divisionSummaryColumns.defCvvrs] || 0);
-    divisionSummaryData[division].cugChecked += Number(r[divisionSummaryColumns.cugChecked] || 0);
-    divisionSummaryData[division].cugMisused += Number(r[divisionSummaryColumns.cugMisused] || 0);
-    divisionSummaryData[division].personalMobChecked += Number(r[divisionSummaryColumns.personalMobChecked] || 0);
-    divisionSummaryData[division].personalMobMisused += Number(r[divisionSummaryColumns.personalMobMisused] || 0);
-    divisionSummaryData[division].mobDeclaration += Number(r[divisionSummaryColumns.mobDeclaration] || 0);
-    divisionSummaryData[division].mismatch += Number(r[divisionSummaryColumns.mismatch] || 0);
-    divisionSummaryData[division].lobbyOnline += Number(r[divisionSummaryColumns.lobbyOnline[0]] || 0) + Number(r[divisionSummaryColumns.lobbyOnline[1]] || 0);
-    divisionSummaryData[division].mobDef += Number(r[divisionSummaryColumns.mobDef] || 0);
-    divisionSummaryData[division].yellowYellowDfc += Number(r[divisionSummaryColumns.yellowYellowDfc] || 0);
-    divisionSummaryData[division].defYellowYellowDfc += Number(r[divisionSummaryColumns.defYellowYellowDfc] || 0);
-    divisionSummaryData[division].yellowIr += Number(r[divisionSummaryColumns.yellowIr] || 0);
-    divisionSummaryData[division].defYellowIr += Number(r[divisionSummaryColumns.defYellowIr] || 0);
-    divisionSummaryData[division].alpRsValve += Number(r[divisionSummaryColumns.alpRsValve] || 0);
-    divisionSummaryData[division].defAlpRsValve += Number(r[divisionSummaryColumns.defAlpRsValve] || 0);
-    divisionSummaryData[division].memuSpeed += Number(r[divisionSummaryColumns.memuSpeed] || 0);
-    divisionSummaryData[division].overspeeding += Number(r[divisionSummaryColumns.overspeeding] || 0);
-    divisionSummaryData[division].ibsSignal += Number(r[divisionSummaryColumns.ibsSignal] || 0);
-    divisionSummaryData[division].defIbsSignal += Number(r[divisionSummaryColumns.defIbsSignal] || 0);
-    divisionSummaryData[division].runningRoom += Number(r[divisionSummaryColumns.runningRoom] || 0);
-    divisionSummaryData[division].defRunningRoom += Number(r[divisionSummaryColumns.defRunningRoom] || 0);
-    divisionSummaryData[division].stablingChecked += Number(r[divisionSummaryColumns.stablingChecked] || 0);
-    divisionSummaryData[division].defStabling += Number(r[divisionSummaryColumns.defStabling] || 0);
-    divisionSummaryData[division].shuntingChecked += Number(r[divisionSummaryColumns.shuntingChecked] || 0);
-    divisionSummaryData[division].defShunting += Number(r[divisionSummaryColumns.defShunting] || 0);
+
+    categories.forEach(cat => {
+      let checks = 0;
+      if (Array.isArray(cat.checkCol)) {
+        cat.checkCol.forEach(col => checks += Number(r[col - 1] || 0));
+      } else {
+        checks = Number(r[cat.checkCol - 1] || 0);
+      }
+      let deficiencies = 0;
+      if (Array.isArray(cat.defCol)) {
+        cat.defCol.forEach(col => deficiencies += Number(r[col - 1] || 0));
+      } else {
+        deficiencies = Number(r[cat.defCol - 1] || 0);
+      }
+      divisionSummaryData[division][cat.name + 'Check'] += checks;
+      divisionSummaryData[division][cat.name + 'Def'] += deficiencies;
+    });
   });
 
   const summaryHeader = document.getElementById('summaryHeader');
@@ -691,109 +413,30 @@ function renderTables() {
 
   divisionSummaryTableHeader.innerHTML = `
     <th onclick="sortDivisionTable('division')">Division</th>
-    <th onclick="sortDivisionTable('spm')">Total SPMs</th>
-    <th onclick="sortDivisionTable('defSpm')">SPM Def.</th>
-    <th onclick="sortDivisionTable('cvvrs')">Total CVVRS</th>
-    <th onclick="sortDivisionTable('defCvvrs')">CVVRS Def.</th>
-    <th onclick="sortDivisionTable('cugChecked')">CUG Checked</th>
-    <th onclick="sortDivisionTable('cugMisused')">CUG Misused</th>
-    <th onclick="sortDivisionTable('personalMobChecked')">Personal Mob. Checked</th>
-    <th onclick="sortDivisionTable('personalMobMisused')">Personal Mob. Misused</th>
-    <th onclick="sortDivisionTable('mobDeclaration')">Mob. Declaration</th>
-    <th onclick="sortDivisionTable('mismatch')">Mismatch</th>
-    <th onclick="sortDivisionTable('lobbyOnline')">Lobby + Online</th>
-    <th onclick="sortDivisionTable('mobDef')">Mob. Def.</th>
-    <th onclick="sortDivisionTable('yellowYellowDfc')">Ambush: Yellow-Yellow DFC</th>
-    <th onclick="sortDivisionTable('defYellowYellowDfc')">Def: Yellow-Yellow DFC</th>
-    <th onclick="sortDivisionTable('yellowIr')">Ambush: Yellow IR</th>
-    <th onclick="sortDivisionTable('defYellowIr')">Def: Yellow IR</th>
-    <th onclick="sortDivisionTable('alpRsValve')">ALP RS Valve Check</th>
-    <th onclick="sortDivisionTable('defAlpRsValve')">Def: ALP RS Valve</th>
-    <th onclick="sortDivisionTable('memuSpeed')">MEMU Speed at PF</th>
-    <th onclick="sortDivisionTable('overspeeding')">OverSpeeding Cases</th>
-    <th onclick="sortDivisionTable('ibsSignal')">IBS Signal Passed</th>
-    <th onclick="sortDivisionTable('defIbsSignal')">Def: IBS Signal</th>
-    <th onclick="sortDivisionTable('runningRoom')">Running Room (Wee Hours)</th>
-    <th onclick="sortDivisionTable('defRunningRoom')">Def: Running Room</th>
-    <th onclick="sortDivisionTable('stablingChecked')">Stabling Checked</th>
-    <th onclick="sortDivisionTable('defStabling')">Def: Stabling</th>
-    <th onclick="sortDivisionTable('shuntingChecked')">Shunting Checked</th>
-    <th onclick="sortDivisionTable('defShunting')">Def: Shunting</th>
+    ${categories.map(cat => `
+      <th onclick="sortDivisionTable('${cat.name}Check')">${cat.name} Checks</th>
+      <th onclick="sortDivisionTable('${cat.name}Def')">${cat.name} Def.</th>
+    `).join('')}
   `;
 
   divisionSummaryTableBody.innerHTML = '';
   if (showDivisionSummary) {
-    const divisions = Object.keys(divisionSummaryData).sort((a, b) => divisionSummaryData[b].spm - divisionSummaryData[a].spm);
+    const divisions = Object.keys(divisionSummaryData).sort((a, b) => divisionSummaryData[b]['SPMCheck'] - divisionSummaryData[a]['SPMCheck']);
     if (divisions.length === 0) {
-      divisionSummaryTableBody.innerHTML = `<tr><td colspan="29">No data available for the selected filters.</td></tr>`;
+      divisionSummaryTableBody.innerHTML = `<tr><td colspan="${categories.length * 2 + 1}">No data available for the selected filters.</td></tr>`;
     } else {
       divisions.forEach(division => {
         const g = divisionSummaryData[division];
-        const row = `
-          <tr>
-            <td>${division}</td>
-            <td>${g.spm}</td>
-            <td>${g.defSpm}</td>
-            <td>${g.cvvrs}</td>
-            <td>${g.defCvvrs}</td>
-            <td>${g.cugChecked}</td>
-            <td>${g.cugMisused}</td>
-            <td>${g.personalMobChecked}</td>
-            <td>${g.personalMobMisused}</td>
-            <td>${g.mobDeclaration}</td>
-            <td>${g.mismatch}</td>
-            <td>${g.lobbyOnline}</td>
-            <td>${g.mobDef}</td>
-            <td>${g.yellowYellowDfc}</td>
-            <td>${g.defYellowYellowDfc}</td>
-            <td>${g.yellowIr}</td>
-            <td>${g.defYellowIr}</td>
-            <td>${g.alpRsValve}</td>
-            <td>${g.defAlpRsValve}</td>
-            <td>${g.memuSpeed}</td>
-            <td>${g.overspeeding}</td>
-            <td>${g.ibsSignal}</td>
-            <td>${g.defIbsSignal}</td>
-            <td>${g.runningRoom}</td>
-            <td>${g.defRunningRoom}</td>
-            <td>${g.stablingChecked}</td>
-            <td>${g.defStabling}</td>
-            <td>${g.shuntingChecked}</td>
-            <td>${g.defShunting}</td>
-          </tr>
-        `;
-        divisionSummaryTableBody.insertAdjacentHTML('beforeend', row);
-        excelDivisionSummaryData.push({
-          Division: division,
-          'Total SPMs': g.spm,
-          'SPM Def.': g.defSpm,
-          'Total CVVRS': g.cvvrs,
-          'CVVRS Def.': g.defCvvrs,
-          'CUG Checked': g.cugChecked,
-          'CUG Misused': g.cugMisused,
-          'Personal Mob. Checked': g.personalMobChecked,
-          'Personal Mob. Misused': g.personalMobMisused,
-          'Mob. Declaration': g.mobDeclaration,
-          Mismatch: g.mismatch,
-          'Lobby + Online': g.lobbyOnline,
-          'Mob. Def.': g.mobDef,
-          'Ambush: Yellow-Yellow DFC': g.yellowYellowDfc,
-          'Def: Yellow-Yellow DFC': g.defYellowYellowDfc,
-          'Ambush: Yellow IR': g.yellowIr,
-          'Def: Yellow IR': g.defYellowIr,
-          'ALP RS Valve Check': g.alpRsValve,
-          'Def: ALP RS Valve': g.defAlpRsValve,
-          'MEMU Speed at PF': g.memuSpeed,
-          'OverSpeeding Cases': g.overspeeding,
-          'IBS Signal Passed': g.ibsSignal,
-          'Def: IBS Signal': g.defIbsSignal,
-          'Running Room (Wee Hours)': g.runningRoom,
-          'Def: Running Room': g.defRunningRoom,
-          'Stabling Checked': g.stablingChecked,
-          'Def: Stabling': g.defStabling,
-          'Shunting Checked': g.shuntingChecked,
-          'Def: Shunting': g.defShunting
+        let rowHtml = `<tr><td>${division}</td>`;
+        const excelRow = { Division: division };
+        categories.forEach(cat => {
+          rowHtml += `<td>${g[cat.name + 'Check']}</td><td>${g[cat.name + 'Def']}</td>`;
+          excelRow[cat.name + ' Checks'] = g[cat.name + 'Check'];
+          excelRow[cat.name + ' Def.'] = g[cat.name + 'Def'];
         });
+        rowHtml += `</tr>`;
+        divisionSummaryTableBody.insertAdjacentHTML('beforeend', rowHtml);
+        excelDivisionSummaryData.push(excelRow);
       });
     }
   }
@@ -804,44 +447,53 @@ function renderTables() {
   const allRemarksData = [];
   const groupedRemarks = {};
 
-  allData.slice(2).forEach(r => {
-    const date = r[idx('Date')], division = r[1], remarks = r[31] || '', e_date = r[33] || '', action_taken = r[34] || '', status = r[35] || '';
+  allData.slice(1).forEach(r => {
+    const date = r[1], division = r[0];
     if (!division || !date) return;
     if (date < fromDate || date > toDate) return;
     if (selectedDivision && division !== selectedDivision) return;
 
-    const hasDeficiency = deficiencyColumns.some(col => Number(r[col] || 0) > 0);
+    let hasDeficiency = false;
+    categories.forEach(cat => {
+      let def = 0;
+      if (Array.isArray(cat.defCol)) {
+        cat.defCol.forEach(col => def += Number(r[col - 1] || 0));
+      } else {
+        def = Number(r[cat.defCol - 1] || 0);
+      }
+      if (def > 0) hasDeficiency = true;
+    });
     if (!hasDeficiency) return;
 
     const key = `${date}_${division}`;
     if (!groupedRemarks[key]) {
-      groupedRemarks[key] = { date, division, categories: [], remarks, e_date, action_taken, status };
+      groupedRemarks[key] = { date, division, categories: [] };
     }
 
-    summaryData.forEach(row => {
-      const cat = categories.find(c => c.sn === row.sn);
-      if (row.divisionsWithDef.split(', ').includes(division)) {
-        const deficiency = Number(r[cat.defCol] || 0);
-        if (deficiency > 0) {
-          if (!groupedRemarks[key].categories.includes(cat.name)) {
-            groupedRemarks[key].categories.push(cat.name);
-            categoryCounts[cat.name] = (categoryCounts[cat.name] || 0) + 1;
-            divisionCounts[division] = (divisionCounts[division] || 0) + 1;
-          }
+    categories.forEach(cat => {
+      let def = 0;
+      if (Array.isArray(cat.defCol)) {
+        cat.defCol.forEach(col => def += Number(r[col - 1] || 0));
+      } else {
+        def = Number(r[cat.defCol - 1] || 0);
+      }
+      if (def > 0) {
+        const remark = r[cat.remarkCol - 1] || '';
+        if (!groupedRemarks[key].categories.some(c => c.name === cat.name)) {
+          groupedRemarks[key].categories.push({ name: cat.name, remark });
+          categoryCounts[cat.name] = (categoryCounts[cat.name] || 0) + 1;
+          divisionCounts[division] = (divisionCounts[division] || 0) + 1;
         }
       }
     });
+  });
 
-    if (groupedRemarks[key].categories.length > 0) {
+  Object.values(groupedRemarks).forEach(g => {
+    if (g.categories.length > 0) {
       allRemarksData.push({
-        date,
-        division,
-        categories: groupedRemarks[key].categories,
-        remarks,
-        e_date,
-        action_taken,
-        status,
-        class: groupedRemarks[key].categories.map(cat => categories.find(c => c.name === cat)?.class).join(' ')
+        date: g.date,
+        division: g.division,
+        categories: g.categories
       });
     }
   });
@@ -906,19 +558,15 @@ function renderTables() {
   remarksHeader.innerHTML = `
     <th>Date</th>
     <th>Division</th>
-    <th>Categorys</th>
-    <th>Deficiencies Remarks</th>
-    <th>E_Date</th>
-    <th>Action Taken Remarks</th>
-    <th>Status</th>
+    <th>Category</th>
+    <th>Remark</th>
   `;
 
   remarksData = [];
-  const selectedCategories = buttonCategory === 'ALL' ? categories.map(c => c.name) : [buttonCategory];
   const divisionsToShow = buttonDivision === 'ALL' ? uniqueDivisions : [buttonDivision];
 
   divisionsToShow.forEach(division => {
-    const filteredData = allRemarksData.filter(row => row.division === division && (buttonCategory === 'ALL' || row.categories.includes(buttonCategory)));
+    const filteredData = allRemarksData.filter(row => row.division === division && (buttonCategory === 'ALL' || row.categories.some(c => c.name === buttonCategory)));
     if (filteredData.length > 0) {
       if (buttonDivision === 'ALL') {
         remarksData.push({ isHeader: true, division });
@@ -929,45 +577,47 @@ function renderTables() {
 
   remarksBody.innerHTML = '';
   if (remarksData.length === 0) {
-    remarksBody.innerHTML = `<tr><td colspan="7">No remarks data available for the selected filters.</td></tr>`;
+    remarksBody.innerHTML = `<tr><td colspan="4">No remarks data available for the selected filters.</td></tr>`;
   } else {
     const start = (currentPage - 1) * rowsPerPage;
     const end = start + rowsPerPage;
     const paginatedData = remarksData.slice(start, end);
     paginatedData.forEach(row => {
       if (row.isHeader) {
-        const html = `<tr><td colspan="7" class="division-group-header">${row.division}</td></tr>`;
+        const html = `<tr><td colspan="4" class="division-group-header">${row.division}</td></tr>`;
         remarksBody.insertAdjacentHTML('beforeend', html);
       } else {
-        const html = `
-          <tr>
-            <td>${row.date}</td>
-            <td>${row.division}</td>
-            <td class="${row.class}">${row.categories.join(', ')}</td>
-            <td class="${row.class}">${row.remarks}</td>
-            <td>${row.e_date}</td>
-            <td>${row.action_taken}</td>
-            <td>${row.status}</td>
-          </tr>
-        `;
-        remarksBody.insertAdjacentHTML('beforeend', html);
+        row.categories.forEach(c => {
+          if (buttonCategory === 'ALL' || c.name === buttonCategory) {
+            const cat = categories.find(cat => cat.name === c.name);
+            const html = `
+              <tr>
+                <td>${row.date}</td>
+                <td>${row.division}</td>
+                <td class="${cat.class}">${c.name}</td>
+                <td class="${cat.class}">${c.remark}</td>
+              </tr>
+            `;
+            remarksBody.insertAdjacentHTML('beforeend', html);
+          }
+        });
       }
     });
 
+    // Populate excelRemarksData
     allRemarksData.forEach(row => {
-      if (buttonCategory === 'ALL' || row.categories.includes(buttonCategory)) {
-        if (buttonDivision === 'ALL' || row.division === buttonDivision) {
-          excelRemarksData.push({
-            Date: row.date,
-            Division: row.division,
-            Category: row.categories.join(', '),
-            Remarks: row.remarks,
-            E_Date: row.e_date,
-            'Action Taken Remarks': row.action_taken,
-            Status: row.status
-          });
+      row.categories.forEach(c => {
+        if (buttonCategory === 'ALL' || c.name === buttonCategory) {
+          if (buttonDivision === 'ALL' || row.division === buttonDivision) {
+            excelRemarksData.push({
+              Date: row.date,
+              Division: row.division,
+              Category: c.name,
+              Remark: c.remark
+            });
+          }
         }
-      }
+      });
     });
   }
 
@@ -1087,17 +737,14 @@ async function showPdfPreview() {
       yOffset += divisionHeight + 5;
     }
 
-    const remarksRows = remarksData.length + (buttonDivision === 'ALL' ? new Set(remarksData.map(r => r.division)).size : 0);
+    const remarksRows = remarksData.reduce((sum, r) => sum + (r.isHeader ? 1 : r.categories.length), 0);
     const remarksHeight = remarksRows * lineHeight;
-    const remarksPages = Math.ceil((yOffset + remarksHeight) / contentHeight);
-    content.push(`<strong>Remarks Table</strong> (${remarksRows} rows, ${remarksHeight.toFixed(1)}mm)`);
-    pageCount += remarksPages - 1;
-
-    const paginationHeight = 10;
-    if (yOffset + paginationHeight > contentHeight) {
-      pageCount++;
+    if (yOffset + remarksHeight > contentHeight) {
+      pageCount += Math.ceil((yOffset + remarksHeight - contentHeight) / contentHeight);
       content.push('--- Page Break ---');
     }
+    content.push(`<strong>Remarks Table</strong> (${remarksRows} rows, ${remarksHeight.toFixed(1)}mm)`);
+
     const pagination = document.querySelector('.pagination');
     const paginationCanvas = await html2canvas(pagination, {
       scale: 0.5,
@@ -1107,7 +754,7 @@ async function showPdfPreview() {
     });
     const paginationImgWidth = contentWidth / 2;
     const paginationImgHeight = (paginationCanvas.height * paginationImgWidth) / paginationCanvas.width;
-    content.push(`<strong>Pagination Controls</strong> (${paginationHeight.toFixed(1)}mm)<br><img src="${paginationCanvas.toDataURL('image/jpeg', 0.5)}" style="width:${paginationImgWidth}px; height:${paginationImgHeight}px;">`);
+    content.push(`<strong>Pagination Controls</strong> <br><img src="${paginationCanvas.toDataURL('image/jpeg', 0.5)}" style="width:${paginationImgWidth}px; height:${paginationImgHeight}px;">`);
 
     let currentPage = 1;
     let pageContent = [];
@@ -1148,6 +795,7 @@ async function exportToPDF() {
       return;
     }
 
+    // Header image
     const header = document.querySelector('.header-buttons');
     const topBar = document.querySelector('.top-bar');
     const canvas = await html2canvas(document.body, {
@@ -1162,7 +810,7 @@ async function exportToPDF() {
     });
     const imgWidth = contentWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const quality = canvas.width * canvas.height > 5000000 ? 0.6 : 0.7;
+    const quality = 0.7;
     doc.addImage(canvas.toDataURL('image/jpeg', quality), 'JPEG', margin, margin, imgWidth, imgHeight);
 
     let yOffset = margin + imgHeight + 5;
@@ -1215,10 +863,10 @@ async function exportToPDF() {
       yOffset += 4;
       doc.autoTable({
         startY: yOffset,
-        head: [['Division', 'Total SPMs', 'SPM Def.', 'Total CVVRS', 'CVVRS Def.', 'CUG Checked', 'CUG Misused', 'Personal Mob. Checked', 'Personal Mob. Misused', 'Mob. Declaration', 'Mismatch', 'Lobby + Online', 'Mob. Def.', 'Ambush: Yellow-Yellow DFC', 'Def: Yellow-Yellow DFC', 'Ambush: Yellow IR', 'Def: Yellow IR', 'ALP RS Valve Check', 'Def: ALP RS Valve', 'MEMU Speed at PF', 'OverSpeeding Cases', 'IBS Signal Passed', 'Def: IBS Signal', 'Running Room (Wee Hours)', 'Def: Running Room', 'Stabling Checked', 'Def: Stabling', 'Shunting Checked', 'Def: Shunting']],
+        head: [['Division', ...categories.flatMap(cat => [cat.name + ' Checks', cat.name + ' Def.'])]],
         body: Object.keys(divisionSummaryData).map(division => {
           const g = divisionSummaryData[division];
-          return [division, g.spm, g.defSpm, g.cvvrs, g.defCvvrs, g.cugChecked, g.cugMisused, g.personalMobChecked, g.personalMobMisused, g.mobDeclaration, g.mismatch, g.lobbyOnline, g.mobDef, g.yellowYellowDfc, g.defYellowYellowDfc, g.yellowIr, g.defYellowIr, g.alpRsValve, g.defAlpRsValve, g.memuSpeed, g.overspeeding, g.ibsSignal, g.defIbsSignal, g.runningRoom, g.defRunningRoom, g.stablingChecked, g.defStabling, g.shuntingChecked, g.defShunting];
+          return [division, ...categories.flatMap(cat => [g[cat.name + 'Check'], g[cat.name + 'Def']])];
         }),
         theme: 'grid',
         styles: {
@@ -1239,7 +887,7 @@ async function exportToPDF() {
         alternateRowStyles: {
           fillColor: [248, 250, 252]
         },
-        columnStyles: Object.fromEntries(Array(29).fill().map((_, i) => [i, { cellWidth: 'auto' }])),
+        columnStyles: Object.fromEntries(Array(categories.length * 2 + 1).fill().map((_, i) => [i, { cellWidth: 'auto' }])),
         didParseCell: (data) => {
           if (data.section === 'body') {
             data.cell.styles.cellWidth = Math.max(60 / 2.835 * pdfSettings.columnWidthMultiplier, data.cell.raw.toString().length * pdfSettings.fontSize * 0.1);
@@ -1255,39 +903,34 @@ async function exportToPDF() {
     const remarksTableData = [];
     remarksData.forEach(row => {
       if (row.isHeader) {
-        remarksTableData.push([{ content: row.division, colSpan: 7, styles: { fillColor: [224, 230, 239], textColor: [26, 26, 26], fontStyle: 'bold', halign: 'left' } }]);
+        remarksTableData.push([{ content: row.division, colSpan: 4, styles: { fillColor: [224, 230, 239], textColor: [26, 26, 26], fontStyle: 'bold', halign: 'left' } }]);
       } else {
-        const catClass = row.class.split(' ')[0] || 'cat-spm';
-        const fillColor = {
-          'cat-spm': [230, 243, 255],
-          'cat-cvvrs': [230, 255, 230],
-          'cat-cug': [255, 230, 230],
-          'cat-personal-mob': [255, 245, 230],
-          'cat-mob-declaration': [230, 230, 255],
-          'cat-lobby-online': [240, 230, 255],
-          'cat-yellow-dfc': [255, 255, 230],
-          'cat-yellow-ir': [230, 255, 240],
-          'cat-alp-rs': [255, 230, 240],
-          'cat-memu-speed': [230, 250, 255],
-          'cat-ibs-signal': [240, 255, 230],
-          'cat-running-room': [255, 230, 255],
-          'cat-stabling': [230, 240, 255],
-          'cat-shunting': [255, 250, 230]
-        }[catClass] || [255, 255, 255];
-        remarksTableData.push([
-          { content: row.date },
-          { content: row.division },
-          { content: row.categories.join(', '), styles: { fillColor } },
-          { content: row.remarks, styles: { fillColor } },
-          { content: row.e_date },
-          { content: row.action_taken },
-          { content: row.status }
-        ]);
+        row.categories.forEach(c => {
+          const cat = categories.find(cat => cat.name === c.name);
+          const fillColor = {
+            'cat-spm': [230, 243, 255],
+            'cat-cvvrs': [230, 255, 230],
+            'cat-mobile': [255, 245, 230],
+            'cat-ambush-dfc': [255, 230, 230],
+            'cat-alprs': [230, 230, 255],
+            'cat-memu': [240, 230, 255],
+            'cat-ibh': [255, 255, 230],
+            'cat-runningroom': [230, 255, 240],
+            'cat-stabling': [255, 230, 240],
+            'cat-shunting': [230, 250, 255]
+          }[cat.class] || [255, 255, 255];
+          remarksTableData.push([
+            { content: row.date },
+            { content: row.division },
+            { content: c.name, styles: { fillColor } },
+            { content: c.remark, styles: { fillColor } }
+          ]);
+        });
       }
     });
     doc.autoTable({
       startY: yOffset,
-      head: [['Date', 'Division', 'Category', 'Remarks', 'E_Date', 'Action Taken Remarks', 'Status']],
+      head: [['Date', 'Division', 'Category', 'Remark']],
       body: remarksTableData,
       theme: 'grid',
       styles: {
@@ -1312,10 +955,7 @@ async function exportToPDF() {
         0: { cellWidth: 'auto' },
         1: { cellWidth: 'auto' },
         2: { cellWidth: 'auto' },
-        3: { cellWidth: 'auto' },
-        4: { cellWidth: 'auto' },
-        5: { cellWidth: 'auto' },
-        6: { cellWidth: 'auto' }
+        3: { cellWidth: 'auto' }
       },
       didParseCell: (data) => {
         if (data.section === 'body' && !data.row.cells[0].styles.fillColor) {
